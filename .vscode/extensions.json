@@ -1,7 +1,6 @@
 {
     "recommendations": [
         // --- Искусственный интеллект ---
-        "Codeium.codeium",
         "Qodo.codium",
         "qwenlm.qwen-code-vscode-ide-companion",
         // --- Python и FastAPI ---
