@@ -69,5 +69,8 @@
         "sysrq",
         "pylint"
     ],
-    "git.autofetch": true
+    "git.autofetch": true,
+    "python.analysis.extraPaths": [
+        "./src/zbx_1c_py"
+    ]
 }
