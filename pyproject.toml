@@ -1,14 +1,18 @@
 [project]
-name = "project_name"
+name = "zbx_1c_py"
 version = "0.1.0"
-description = "Project Description"
+description = "Мониторинг 1С Zabbix"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "loguru>=0.7.2",
     "pydantic>=2.6.0",
     "psutil>=5.9.0",
+    "pydantic-settings>=2.12.0",
 ]
+
+[project.scripts]
+check-config = "scripts.check_config:check_configuration"
 
 [dependency-groups]
 dev = [
@@ -24,7 +28,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/project_name"]
+packages = ["src/zbx_1c_py"] # Имя должно совпадать с папкой в src
 
 [tool.black]
 line-length = 100
@@ -36,9 +40,17 @@ testpaths = ["tests"]
 
 [tool.pylint."MESSAGES CONTROL"]
 disable = [
-    "C0114","C0115","C0116",
-    "R0903","W0612"
+    "C0114", # Missing module docstring
+    "C0115", # Missing class docstring
+    "C0116", # Missing function docstring
+    "R0903", # Too few public methods
+    "W0612", # Unused variable
+    "W0221",
+    "E0401", # Unable to import (это уберет ошибку с config)
+    "C0103", # Invalid constant name (если переменные не CAPS_LOCK)
 ]
 
 [tool.pylint.MASTER]
+# Указываем линтеру, что корень кода — это папка src
+init-hook = "import sys; sys.path.append('src')"
 load-plugins = ["pylint_pydantic"]
