@@ -1,219 +1,267 @@
 """
-Модуль для взаимодействия с RAS (Remote Administration System) 1С:Предприятия
-через утилиту rac.exe. Предоставляет функции для получения списка кластеров, парсинга
-вывода утилиты и автоматического определения параметров кластера.
+Модуль для управления кластерами 1С:Предприятия через утилиту rac.exe.
 
-Основные возможности:
-- Получение списка кластеров через RAS (Remote Administration System) с конфигурируемыми
-  хостом и портом подключения
-- Парсинг текстового вывода rac.exe в структурированный список словарей
-- Автоматическое извлечение и сохранение в настройки:
-    * cluster_id — уникальный идентификатор кластера (UUID)
-    * cluster_name — человекочитаемое имя кластера
+Обеспечивает:
+1. Получение полного списка доступных кластеров.
+2. Проверку доступности сервиса RAS.
+3. Безопасное извлечение идентификаторов (UUID) кластеров.
+4. Обработку системных ошибок при взаимодействии с RAS.
 
-Конфигурация:
-- rac_path — путь к исполняемому файлу rac.exe
-- rac_host — хост сервера RAS (по умолчанию: localhost)
-- rac_port — порт сервера RAS (по умолчанию: 1545)
-- cluster_id — автоматически определяемый идентификатор кластера
-
-Зависимости:
-- rac.exe (входит в состав платформы 1С:Предприятие)
-- loguru — для структурированного логирования
-- config.settings — централизованное хранение конфигурационных параметров
+Модуль предоставляет функции для:
+- Проверки доступности RAS-сервиса
+- Получения информации о кластерах
+- Извлечения идентификаторов кластеров
+- Инициализации глобальных данных о кластерах
 """
 
+import os
 import subprocess
-from typing import Dict, List
+import sys
+from typing import List, Dict, Any, Optional
 from loguru import logger
-from config import settings
+
+# Предполагается, что эти модули находятся в той же директории
+try:
+    from .config import settings
+    from .utils.helpers import parse_rac_output, decode_output
+except ImportError:
+    # Fallback для случая, когда файл запускается напрямую
+    from config import settings
+    from utils.helpers import parse_rac_output, decode_output
+
+if not os.getenv("PYTEST_CURRENT_TEST"):
+    logger.remove()
+    log_file_path = os.path.join(settings.log_path, "1c_clusters.log")
+
+    logger.add(
+        log_file_path,
+        rotation="5 MB",
+        level="ERROR",
+        encoding="utf-8",
+    )
 
 
-def get_clusters() -> str:
+def check_ras_availability() -> Dict[str, Any]:
     """
-    Получает список кластеров 1С через утилиту rac.exe с параметрами из конфигурации.
+    Проверяет доступность сервиса RAS (Remote Administration Service) 1С.
 
-    Формирует и выполняет команду:
-        rac.exe <rac_host>:<rac_port> cluster list
+    Функция отправляет базовый запрос к RAS-сервису для проверки его
+    работоспособности и готовности принимать команды. Используется
+    для диагностики связи перед выполнением основных операций мониторинга.
 
     Returns:
-        str: Сырой текстовый вывод утилиты rac.exe в кодировке cp866.
-             В случае ошибки возвращает пустую строку.
-
-    Raises:
-        subprocess.CalledProcessError: Перехватывается внутри функции с логированием.
-        FileNotFoundError: Перехватывается внутри функции с логированием.
-
-    Notes:
-        - Кодировка cp866 (OEM 866) обязательна для корректного отображения кириллицы
-          в консольном выводе Windows.
-        - Параметры подключения (хост и порт) берутся из конфигурации:
-          * settings.rac_host — адрес сервера RAS (например, "localhost")
-          * settings.rac_port — порт сервера RAS (стандартный: 1545)
-        - Путь к исполняемому файлу rac.exe задаётся в settings.rac_path.
+        Dict[str, Any]: Словарь с результатами проверки, содержащий:
+            - available (bool): Доступен ли сервис (True/False)
+            - message (str): Сообщение о статусе или ошибке
+            - code (int): Код результата (0 - успех, 404 - файл не найден и т.д.)
 
     Example:
-        При настройках:
-            rac_host = "srv-1c"
-            rac_port = 1545
-        Будет выполнена команда:
-            rac.exe srv-1c:1545 cluster list
+        >>> result = check_ras_availability()
+        >>> if result['available']:
+        ...     print(f"RAS доступен: {result['message']}")
+        ... else:
+        ...     print(f"Ошибка: {result['message']}")
+
+    Note:
+        - Использует короткий таймаут (5 секунд) для быстрой проверки
+        - В случае ошибки возвращает структурированную информацию об ошибке
+        - Может вернуть различные коды ошибок в зависимости от ситуации
     """
     rac_path = settings.rac_path
-    rac_host = settings.rac_host
-    rac_port = settings.rac_port
-    # Формируем адрес подключения в формате "хост:порт"
-    ras_address = f"{rac_host}:{rac_port}"
+    ras_address = f"{settings.rac_host}:{settings.rac_port}"
     command = [rac_path, ras_address, "cluster", "list"]
 
     try:
-        # Выполняем команду с захватом вывода в кодировке cp866 для поддержки кириллицы
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            encoding="cp866",
-            check=True,
-        )
-        logger.debug(f"Успешно получен вывод кластеров ({len(result.stdout)} символов)")
-        return result.stdout
+        # Пытаемся получить список кластеров с коротким таймаутом
+        result = subprocess.run(command, capture_output=True, text=False, check=False, timeout=5)
 
-    except subprocess.CalledProcessError as e:
-        # Ошибка выполнения команды: недоступность сервера, отсутствие прав и т.д.
-        logger.error(
-            f"Ошибка выполнения команды rac.exe (код возврата {e.returncode}):\n"
-            f"Команда: {' '.join(command)}\n"
-            f"STDERR: {e.stderr.strip() if e.stderr else '<пусто>'}"
-        )
-        return ""
+        if result.returncode == 0:
+            return {"available": True, "message": "RAS is reachable", "code": 0}
+
+        stderr_text = decode_output(result.stderr)
+        return {
+            "available": False,
+            "message": f"RAC Error (Code {result.returncode}): {stderr_text}",
+            "code": result.returncode,
+        }
+
+    except subprocess.TimeoutExpired:
+        return {
+            "available": False,
+            "message": "Timeout: RAS service is not responding",
+            "code": 408,
+        }
     except FileNotFoundError:
-        # Исполняемый файл rac.exe не найден по указанному пути
-        logger.error(f"Исполняемый файл rac.exe не найден по пути: {rac_path}")
-        logger.error("Проверьте корректность настройки 'settings.rac_path'")
-        return ""
+        return {"available": False, "message": f"File not found: {rac_path}", "code": 404}
+    except (PermissionError, OSError) as e:
+        return {"available": False, "message": f"System error: {str(e)}", "code": 500}
 
 
-def parse_rac_output(raw_text: str) -> List[Dict[str, str]]:
+def get_all_clusters() -> List[Dict[str, Any]]:
     """
-    Преобразует текстовый вывод утилиты rac.exe в структурированный список словарей.
+    Выполняет запрос к RAS и возвращает список всех обнаруженных кластеров 1С.
 
-    Алгоритм парсинга:
-    1. Разделение вывода на отдельные сущности по пустым строкам
-    2. Для каждой строки сущности извлечение пар "ключ: значение"
-    3. Очистка значений от ведущих/замыкающих пробелов и двойных кавычек
-
-    Формат входных данных:
-        Каждая сущность (кластер) отделена пустой строкой.
-        Поля представлены в формате: "ключ             : "значение""
-        Значения могут быть заключены в двойные кавычки.
-
-    Пример вывода rac.exe:
-        cluster             : "a1b2c3d4-5678-90ab-cdef-1234567890ab"
-        name                : "Основной кластер"
-        port                : "1541"
-
-        cluster             : "b2c3d4e5-6789-01ab-cdef-2345678901bc"
-        name                : "Резервный кластер"
-        ...
-
-    Args:
-        raw_text (str): Сырой вывод утилиты rac.exe, полученный через get_clusters().
+    Функция использует утилиту rac.exe для получения информации обо всех
+    кластерах, зарегистрированных в RAS-сервисе. Результат парсится и
+    возвращается в виде списка словарей с информацией о каждом кластере.
 
     Returns:
-        List[Dict[str, str]]: Список словарей, где каждый словарь представляет один кластер.
-                              Ключи словаря — названия полей (например, "cluster", "name"),
-                              значения — соответствующие строковые данные без кавычек.
+        List[Dict[str, Any]]: Список словарей, где каждый словарь содержит
+                             информацию о кластере 1С, включая:
+                             - cluster: UUID кластера
+                             - name: имя кластера
+                             - другие поля в зависимости от конфигурации кластера
+
+    Raises:
+        subprocess.TimeoutExpired: Если выполнение команды превышает 15 секунд
+        FileNotFoundError: Если не найден исполняемый файл rac.exe
+        subprocess.SubprocessError: При других ошибках выполнения процесса
 
     Example:
-        >>> output = 'cluster : "a1b2c3d4"\\nname : "Кластер 1"\\n\\ncluster : "b2c3d4e5"'
-        >>> parse_rac_output(output)
-        [{'cluster': 'a1b2c3d4', 'name': 'Кластер 1'}, {'cluster': 'b2c3d4e5'}]
+        >>> clusters = get_all_clusters()
+        >>> for cluster in clusters:
+        ...     print(f"Кластер: {cluster['name']} (ID: {cluster['cluster']})")
+
+    Note:
+        - Использует таймаут 15 секунд для предотвращения зависания
+        - В случае ошибки возвращает пустой список
+        - Ошибки логируются в файл 1c_clusters.log
     """
-    results: List[Dict[str, str]] = []
-    current_item: Dict[str, str] = {}
+    rac_path = settings.rac_path
+    ras_address = f"{settings.rac_host}:{settings.rac_port}"
+    command = [rac_path, ras_address, "cluster", "list"]
 
-    # Обрабатываем вывод построчно
-    for line in raw_text.splitlines():
-        line = line.strip()
-        # Пустая строка означает завершение текущей сущности
-        if not line:
-            if current_item:  # Сохраняем накопленную сущность
-                results.append(current_item)
-                current_item = {}
-            continue
+    try:
+        # Запускаем процесс с ограничением по времени
+        result = subprocess.run(command, capture_output=True, check=False, text=False, timeout=15)
 
-        # Извлекаем пару "ключ: значение" из строки
-        if ":" in line:
-            key, value = line.split(":", 1)  # Разделяем только по первому двоеточию
-            clean_key = key.strip()
-            # Удаляем пробелы и внешние двойные кавычки из значения
-            clean_value = value.strip().strip('"')
-            current_item[clean_key] = clean_value
+        if result.returncode == 0:
+            decoded_text = decode_output(result.stdout)
+            return parse_rac_output(decoded_text)
 
-    # Сохраняем последнюю сущность, если она не была добавлена из-за отсутствия завершающей пустой строки
-    if current_item:
-        results.append(current_item)
+        stderr_text = decode_output(result.stderr)
+        logger.error(f"RAC ошибка (код {result.returncode}): {stderr_text}")
 
-    logger.debug(f"Спарсировано {len(results)} кластер(ов) из вывода RAC")
-    return results
+    except FileNotFoundError:
+        logger.error(f"Файл не найден: {rac_path}. Проверьте настройки.")
+    except subprocess.TimeoutExpired:
+        logger.warning(f"Сервер RAS {ras_address} не ответил за 15 секунд.")
+    except subprocess.SubprocessError as e:
+        logger.error(f"Системная ошибка при запуске rac.exe: {e}")
+
+    return []
 
 
-# === Автоматическое определение параметров кластера ===
-# Получаем сырые данные о кластерах от сервера RAS
-raw_clusters = get_clusters()
+def get_cluster_ids() -> List[str]:
+    """
+    Возвращает список UUID всех найденных кластеров 1С.
 
-# Преобразуем текстовый вывод в структурированный список словарей
-clusters_list = parse_rac_output(raw_clusters)
+    Функция извлекает уникальные идентификаторы (UUID) из информации
+    о кластерах, полученной через get_all_clusters(). Пустые значения
+    исключаются из результата.
 
-# Инициализируем переменные для хранения параметров кластера
-auto_cluster_id = None
-auto_cluster_name = None
+    Returns:
+        List[str]: Список строк с UUID кластеров 1С
 
-# Извлекаем параметры первого кластера из списка (если список не пуст)
-if clusters_list:
-    first_cluster = clusters_list[0]
-    auto_cluster_id = first_cluster.get("cluster")
-    auto_cluster_name = first_cluster.get("name")
+    Example:
+        >>> cluster_ids = get_cluster_ids()
+        >>> print(f"Найдено {len(cluster_ids)} кластеров")
+        >>> for cid in cluster_ids:
+        ...     print(f"- {cid}")
 
-    if auto_cluster_id:
-        # Сохраняем идентификатор кластера в глобальные настройки приложения
-        cluster_id = auto_cluster_id
-        logger.info(
-            f"Кластер автоматически определён: "
-            f"[Имя={auto_cluster_name or '<без имени>'}, ID={cluster_id}]"
-        )
-    else:
-        logger.error("Ошибка: первый элемент в выводе RAC не содержит обязательного поля 'cluster'")
-else:
-    logger.error("Не удалось определить кластер: вывод RAC пуст или не содержит валидных данных")
-
-# Экспортируем параметры кластера как строковые переменные для внешнего использования
-cluster_id: str = str(auto_cluster_id) if auto_cluster_id else ""
-cluster_name: str = str(auto_cluster_name) if auto_cluster_name else ""
+    Note:
+        - Функция исключает кластеры с пустыми или None значениями UUID
+        - Возвращает только действительные идентификаторы кластеров
+        - Может вернуть пустой список, если кластеры не найдены
+    """
+    clusters = get_all_clusters()
+    # Фильтрация для исключения пустых значений
+    cluster_ids: List[str] = [
+        str(c.get("cluster")) for c in clusters if c.get("cluster") is not None
+    ]
+    return cluster_ids
 
 
-# === Блок ручного тестирования модуля ===
+def get_default_cluster() -> Optional[Dict[str, Any]]:
+    """
+    Возвращает первый найденный кластер из списка доступных кластеров.
+
+    Функция используется для получения "по умолчанию" кластера,
+    когда требуется работать с одним кластером из всех доступных.
+    Если кластеры не найдены, возвращает None.
+
+    Returns:
+        Optional[Dict[str, Any]]: Словарь с информацией о первом кластере
+                                 или None, если кластеры не найдены
+
+    Example:
+        >>> default_cluster = get_default_cluster()
+        >>> if default_cluster:
+        ...     print(f"По умолчанию: {default_cluster['name']}")
+        ... else:
+        ...     print("Кластеры не найдены")
+
+    Note:
+        - Возвращает первый элемент из списка кластеров
+        - Может вернуть None, если список кластеров пуст
+        - Используется как fallback вариант при отсутствии явного выбора
+    """
+    clusters = get_all_clusters()
+    return clusters[0] if clusters else None
+
+
+def initialize_cluster_info():
+    """
+    Инициализирует глобальные данные о кластерах 1С.
+
+    Функция получает информацию обо всех доступных кластерах,
+    извлекает данные о первом кластере (идентификатор и имя)
+    и возвращает их для дальнейшего использования в приложении.
+
+    Returns:
+        tuple: Кортеж из трех элементов:
+            - all_clusters (List[Dict[str, Any]]): Список всех кластеров
+            - c_id (str): Идентификатор первого кластера (или пустая строка)
+            - c_name (str): Имя первого кластера (или пустая строка)
+
+    Example:
+        >>> clusters, cluster_id, cluster_name = initialize_cluster_info()
+        >>> print(f"Всего кластеров: {len(clusters)}")
+        >>> if cluster_id:
+        ...     print(f"Первый кластер: {cluster_name} (ID: {cluster_id})")
+
+    Note:
+        - Используется для инициализации глобальных переменных в модуле
+        - Возвращает пустые строки, если кластеры не найдены
+        - Является вспомогательной функцией для инициализации модуля
+    """
+    all_clusters = get_all_clusters()
+    _default = all_clusters[0] if all_clusters else None
+
+    c_id = str(_default.get("cluster", "")) if _default else ""
+    c_name = str(_default.get("name", "")) if _default else ""
+
+    return all_clusters, c_id, c_name
+
+
+# Инициализация глобальных переменных для экспорта в другие модули
+# Эти переменные содержат информацию о доступных кластерах 1С и используются
+# другими модулями приложения (например, main.py) для выполнения операций
+all_available_clusters, cluster_id, cluster_name = initialize_cluster_info()
+
 if __name__ == "__main__":
-    logger.info("Запуск модуля в режиме тестирования (__main__)")
-    logger.info(f"Параметры подключения: {settings.rac_host}:{settings.rac_port}")
+    # Тестовый запуск модуля
+    logger.add(sys.stderr, level="DEBUG")
 
-    # Получаем и выводим сырые данные
-    output = get_clusters()
-    print("\n=== Сырой вывод rac.exe ===")
-    print(output if output else "<пустой вывод>")
+    print("\n--- Проверка доступности RAS ---")
+    ras_status = check_ras_availability()
+    print(f"Статус: {'OK' if ras_status['available'] else 'ОШИБКА'}")
+    print(f"Сообщение: {ras_status['message']}")
 
-    # Выводим спарсированные данные в человекочитаемом формате
-    print("\n=== Спарсированные данные о кластерах ===")
-    parsed = parse_rac_output(output)
-    if not parsed:
-        print("  <нет данных>")
+    print("\n--- Отчет по кластерам 1С ---")
+    ids = get_cluster_ids()
+    if not ids:
+        print("Кластеры не найдены.")
     else:
-        for i, item in enumerate(parsed, 1):
-            print(f"\nКластер #{i}:")
-            for k, v in sorted(item.items()):
-                print(f"  {k:20s}: {v}")
-
-    # Выводим автоматически определённые параметры кластера
-    print("\n=== Автоматически определённые параметры кластера ===")
-    print(f"cluster_name : {auto_cluster_name or '<не определён>'}")
-    print(f"cluster_id   : {auto_cluster_id or '<не определён>'}")
+        for i, cid in enumerate(ids, 1):
+            print(f"Кластер #{i}: ID = {cid}")
