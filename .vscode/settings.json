@@ -72,5 +72,8 @@
     "git.autofetch": true,
     "python.analysis.extraPaths": [
         "./src/zbx_1c_py"
+    ],
+    "cSpell.words": [
+        "utills"
     ]
 }
