@@ -381,24 +381,18 @@ def get_metrics(
             # total_sessions — общее количество сессий
             total_sessions = len(sessions)
             
-            # active_sessions — сессии, которые не в hibernate
-            # Если указаны --check-activity или --check-traffic, используем строгую фильтрацию
-            if check_activity or check_traffic:
-                from ..monitoring.session.filters import is_session_active
-                active_sessions = sum(
-                    1 for s in sessions if is_session_active(
-                        s,
-                        check_activity=check_activity,
-                        check_traffic=check_traffic,
-                        min_calls=min_calls,
-                        min_bytes=min_bytes
-                    )
+            # active_sessions — сессии, которые не в hibernate И имеют активность
+            # Используем строгую фильтрацию: hibernate=no + calls >= 1
+            from ..monitoring.session.filters import is_session_active
+            active_sessions = sum(
+                1 for s in sessions if is_session_active(
+                    s,
+                    check_activity=True,      # Проверять вызовы
+                    check_traffic=False,      # Не проверять трафик
+                    min_calls=1,              # Минимум 1 вызов за 5 минут
+                    min_bytes=0               # Без ограничений по трафику
                 )
-            else:
-                # Базовый режим: только hibernate
-                active_sessions = sum(
-                    1 for s in sessions if s.get("hibernate") == "no"
-                )
+            )
 
             # total_jobs — общее количество заданий
             total_jobs = len(jobs)
@@ -434,24 +428,18 @@ def get_metrics(
                 # total_sessions — общее количество сессий
                 total_sessions = len(sessions)
                 
-                # active_sessions — сессии, которые не в hibernate
-                # Если указаны --check-activity или --check-traffic, используем строгую фильтрацию
-                if check_activity or check_traffic:
-                    from ..monitoring.session.filters import is_session_active
-                    active_sessions = sum(
-                        1 for s in sessions if is_session_active(
-                            s,
-                            check_activity=check_activity,
-                            check_traffic=check_traffic,
-                            min_calls=min_calls,
-                            min_bytes=min_bytes
-                        )
+                # active_sessions — сессии, которые не в hibernate И имеют активность
+                # Используем строгую фильтрацию: hibernate=no + calls >= 1
+                from ..monitoring.session.filters import is_session_active
+                active_sessions = sum(
+                    1 for s in sessions if is_session_active(
+                        s,
+                        check_activity=True,      # Проверять вызовы
+                        check_traffic=False,      # Не проверять трафик
+                        min_calls=1,              # Минимум 1 вызов за 5 минут
+                        min_bytes=0               # Без ограничений по трафику
                     )
-                else:
-                    # Базовый режим: только hibernate
-                    active_sessions = sum(
-                        1 for s in sessions if s.get("hibernate") == "no"
-                    )
+                )
 
                 # total_jobs — общее количество заданий
                 total_jobs = len(jobs)
