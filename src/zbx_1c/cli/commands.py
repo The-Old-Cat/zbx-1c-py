@@ -333,11 +333,28 @@ def get_jobs_cmd(cluster_id: str, config: str):
 @cli.command("metrics")
 @click.argument("cluster_id", required=False)
 @click.option("--config", "-c", help="Path to config file", default=".env")
-def get_metrics(config: str, cluster_id: Optional[str]):
+@click.option("--check-activity", is_flag=True, help="Check calls-last-5min for active sessions")
+@click.option("--check-traffic", is_flag=True, help="Check bytes-last-5min for active sessions")
+@click.option("--min-calls", type=int, default=0, help="Minimum calls in last 5 minutes")
+@click.option("--min-bytes", type=int, default=0, help="Minimum bytes in last 5 minutes")
+def get_metrics(
+    config: str,
+    cluster_id: Optional[str],
+    check_activity: bool,
+    check_traffic: bool,
+    min_calls: int,
+    min_bytes: int
+):
     """
     Получение метрик кластера (для Zabbix)
 
     Если cluster_id не указан, собирает метрики для всех кластеров
+
+    Опции для фильтрации активных сессий:
+        --check-activity  — проверять calls-last-5min
+        --check-traffic   — проверять bytes-last-5min
+        --min-calls       — мин. количество вызовов (по умолчанию 0)
+        --min-bytes       — мин. объём трафика (по умолчанию 0)
     """
     try:
         settings = load_settings(config)
@@ -363,10 +380,25 @@ def get_metrics(config: str, cluster_id: Optional[str]):
             # Подсчет метрик
             # total_sessions — общее количество сессий
             total_sessions = len(sessions)
+            
             # active_sessions — сессии, которые не в hibernate
-            active_sessions = sum(
-                1 for s in sessions if s.get("hibernate") == "no"
-            )
+            # Если указаны --check-activity или --check-traffic, используем строгую фильтрацию
+            if check_activity or check_traffic:
+                from ..monitoring.session.filters import is_session_active
+                active_sessions = sum(
+                    1 for s in sessions if is_session_active(
+                        s,
+                        check_activity=check_activity,
+                        check_traffic=check_traffic,
+                        min_calls=min_calls,
+                        min_bytes=min_bytes
+                    )
+                )
+            else:
+                # Базовый режим: только hibernate
+                active_sessions = sum(
+                    1 for s in sessions if s.get("hibernate") == "no"
+                )
 
             # total_jobs — общее количество заданий
             total_jobs = len(jobs)
@@ -401,10 +433,25 @@ def get_metrics(config: str, cluster_id: Optional[str]):
 
                 # total_sessions — общее количество сессий
                 total_sessions = len(sessions)
+                
                 # active_sessions — сессии, которые не в hibernate
-                active_sessions = sum(
-                    1 for s in sessions if s.get("hibernate") == "no"
-                )
+                # Если указаны --check-activity или --check-traffic, используем строгую фильтрацию
+                if check_activity or check_traffic:
+                    from ..monitoring.session.filters import is_session_active
+                    active_sessions = sum(
+                        1 for s in sessions if is_session_active(
+                            s,
+                            check_activity=check_activity,
+                            check_traffic=check_traffic,
+                            min_calls=min_calls,
+                            min_bytes=min_bytes
+                        )
+                    )
+                else:
+                    # Базовый режим: только hibernate
+                    active_sessions = sum(
+                        1 for s in sessions if s.get("hibernate") == "no"
+                    )
 
                 # total_jobs — общее количество заданий
                 total_jobs = len(jobs)
