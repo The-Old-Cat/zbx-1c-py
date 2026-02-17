@@ -29,7 +29,7 @@ def safe_output(data, **kwargs):
     # Для Windows явно пишем UTF-8 байты в stdout
     if sys.platform == "win32":
         # Пишем напрямую в buffer чтобы избежать перекодировки
-        sys.stdout.buffer.write((json_str + '\n').encode('utf-8'))
+        sys.stdout.buffer.write((json_str + "\n").encode("utf-8"))
         sys.stdout.buffer.flush()
     else:
         click.echo(json_str)
@@ -38,15 +38,12 @@ def safe_output(data, **kwargs):
 def load_settings(config_path: str) -> Settings:
     """Загрузка настроек из указанного файла"""
     from pydantic_settings import SettingsConfigDict
-    
+
     class TempSettings(Settings):
         model_config = SettingsConfigDict(
-            env_file=config_path,
-            env_file_encoding="utf-8",
-            case_sensitive=False,
-            extra="ignore"
+            env_file=config_path, env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
         )
-    
+
     return TempSettings()
 
 
@@ -65,11 +62,7 @@ def execute_rac_command(cmd_parts: List[str], timeout: int = 30) -> Optional[Dic
     """Выполнение команды rac"""
     try:
         # Выполняем команду, получаем байты
-        result = __import__("subprocess").run(
-            cmd_parts,
-            capture_output=True,
-            timeout=timeout
-        )
+        result = __import__("subprocess").run(cmd_parts, capture_output=True, timeout=timeout)
 
         # Декодируем с учетом кодировки
         stdout = decode_output(result.stdout)
@@ -247,7 +240,7 @@ def discovery(config: str):
     try:
         settings = load_settings(config)
         clusters = discover_clusters(settings)
-        
+
         result = format_lld_data(clusters)
         safe_output(result, indent=2, default=str)
 
@@ -368,12 +361,16 @@ def get_metrics(config: str, cluster_id: Optional[str]):
             jobs = get_jobs(settings, cluster_id)
 
             # Подсчет метрик
+            # total_sessions — общее количество сессий
             total_sessions = len(sessions)
+            # active_sessions — сессии, которые не в hibernate
             active_sessions = sum(
-                1 for s in sessions if s.get("session-id") and s.get("hibernate") == "no"
+                1 for s in sessions if s.get("hibernate") == "no"
             )
 
+            # total_jobs — общее количество заданий
             total_jobs = len(jobs)
+            # active_bg_jobs — задания со статусом "running"
             active_jobs = sum(1 for j in jobs if j.get("status") == "running")
 
             result = {
@@ -402,28 +399,34 @@ def get_metrics(config: str, cluster_id: Optional[str]):
                 sessions = get_sessions(settings, cid)
                 jobs = get_jobs(settings, cid)
 
+                # total_sessions — общее количество сессий
                 total_sessions = len(sessions)
+                # active_sessions — сессии, которые не в hibernate
                 active_sessions = sum(
-                    1 for s in sessions if s.get("session-id") and s.get("hibernate") == "no"
+                    1 for s in sessions if s.get("hibernate") == "no"
                 )
 
+                # total_jobs — общее количество заданий
                 total_jobs = len(jobs)
+                # active_bg_jobs — задания со статусом "running"
                 active_jobs = sum(1 for j in jobs if j.get("status") == "running")
 
-                results.append({
-                    "cluster": {
-                        "id": cid,
-                        "name": cluster["name"],
-                        "status": cluster["status"],
-                    },
-                    "metrics": {
-                        "total_sessions": total_sessions,
-                        "active_sessions": active_sessions,
-                        "total_jobs": total_jobs,
-                        "active_bg_jobs": active_jobs,
-                        "status": 1,
-                    },
-                })
+                results.append(
+                    {
+                        "cluster": {
+                            "id": cid,
+                            "name": cluster["name"],
+                            "status": cluster["status"],
+                        },
+                        "metrics": {
+                            "total_sessions": total_sessions,
+                            "active_sessions": active_sessions,
+                            "total_jobs": total_jobs,
+                            "active_bg_jobs": active_jobs,
+                            "status": 1,
+                        },
+                    }
+                )
 
             safe_output(results, indent=2, default=str)
 
@@ -471,7 +474,7 @@ def get_all(cluster_id: str, config: str):
                 "total_infobases": len(infobases),
                 "total_sessions": len(sessions),
                 "active_sessions": sum(
-                    1 for s in sessions if s.get("session-id") and s.get("hibernate") == "no"
+                    1 for s in sessions if s.get("hibernate") == "no"
                 ),
                 "total_jobs": len(jobs),
                 "active_jobs": sum(1 for j in jobs if j.get("status") == "running"),
@@ -499,7 +502,7 @@ def test_connection(config: str):
 
         # Проверка наличия rac
         safe_print(f"📁 RAC path: {settings.rac_path}")
-        if settings.rac_path.exists():
+        if settings.rac_path.exists():  # type: ignore[attr-defined]
             safe_print("   ✅ RAC executable found")
         else:
             safe_print("   ❌ RAC executable not found")
@@ -523,7 +526,7 @@ def test_connection(config: str):
             try:
                 sessions = get_sessions(settings, cluster["id"])
                 jobs = get_jobs(settings, cluster["id"])
-                
+
                 total_sessions = len(sessions)
                 active_sessions = sum(
                     1 for s in sessions if s.get("session-id") and s.get("hibernate") == "no"
