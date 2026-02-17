@@ -234,9 +234,10 @@ class TestMainIntegration:
 
         # Создаем тестовый кластер
         test_cluster = {"cluster": "test-id", "name": "Test Cluster"}
-        clusters.all_available_clusters = [test_cluster]
-
-        result = main.collect_metrics_for_cluster("test-id")
+        
+        # Мокаем переменную в модуле main, а не в модуле clusters
+        with patch.object(main_module, 'all_available_clusters', [test_cluster]):
+            result = main.collect_metrics_for_cluster("test-id")
 
         parsed_result = json.loads(result)
 
