@@ -54,12 +54,12 @@ dev = [
 [project.scripts]
 zbx-1c = "zbx_1c.cli.commands:cli"
 zbx-1c-discovery = "zbx_1c.cli.commands:discovery"
-zbx-1c-check-ras = "zbx_1c.cli.commands:check_ras"
+zbx-1c-check-ras = "zbx_1c.cli.commands:check_ras_cmd"
 zbx-1c-monitor = "zbx_1c.cli.commands:monitor"
 zbx-1c-metrics = "zbx_1c.cli.commands:get_metrics"
-zbx-1c-infobases = "zbx_1c.cli.commands:get_infobases"
-zbx-1c-sessions = "zbx_1c.cli.commands:get_sessions"
-zbx-1c-jobs = "zbx_1c.cli.commands:get_jobs"
+zbx-1c-infobases = "zbx_1c.cli.commands:get_infobases_cmd"
+zbx-1c-sessions = "zbx_1c.cli.commands:get_sessions_cmd"
+zbx-1c-jobs = "zbx_1c.cli.commands:get_jobs_cmd"
 zbx-1c-test = "zbx_1c.cli.commands:test_connection"
 [project.urls]
 Homepage = "https://github.com/your-repo/zbx-1c"

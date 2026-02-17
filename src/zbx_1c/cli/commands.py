@@ -14,7 +14,7 @@ from loguru import logger
 
 from ..core.config import Settings
 from ..core.logging import setup_logging
-from ..utils.converters import parse_rac_output, format_lld_data, encode_for_console, get_console_encoding, decode_output
+from ..utils.converters import parse_rac_output, format_lld_data, decode_output
 
 
 def safe_output(data, **kwargs):
