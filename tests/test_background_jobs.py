@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 # Локальный импорт после настройки пути
-from zbx_1c_py.background_jobs import (
+from src.zbx_1c.monitoring.jobs.reader import (
     is_background_job_active,
     filter_active_background_jobs,
     get_background_job_summary,

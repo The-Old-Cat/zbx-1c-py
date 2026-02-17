@@ -6,14 +6,14 @@ import sys
 from pathlib import Path
 
 # Импорты модулей проекта
-from zbx_1c_py import main as main_module
-from zbx_1c_py import config as config_module
-from zbx_1c_py import clusters as clusters_module
-from zbx_1c_py import session as session_module
-from zbx_1c_py import session_active as session_active_module
-from zbx_1c_py import background_jobs as background_jobs_module
-from zbx_1c_py.utils import helpers as helpers_module
-import zbx_1c_py as project_module
+from src.zbx_1c.api import main as main_module
+from src.zbx_1c.core import config as config_module
+from src.zbx_1c.monitoring.cluster import manager as clusters_module
+from src.zbx_1c.monitoring.session import collector as session_module
+from src.zbx_1c.monitoring.session import filters as session_active_module
+from src.zbx_1c.monitoring.jobs import reader as background_jobs_module
+from src.zbx_1c.utils import converters as helpers_module
+import src.zbx_1c as project_module
 
 # Добавляем путь к src для импорта модулей проекта
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))

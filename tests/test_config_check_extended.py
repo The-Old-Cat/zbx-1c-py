@@ -12,8 +12,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zbx_1c_py.config import settings
-from zbx_1c_py.utils.check_config import check_executable_access
+from src.zbx_1c.core.config import settings
+from src.zbx_1c.cli.zabbix_config import check_executable_access
 
 
 class TestCheckExecutableAccessDetailed:

@@ -6,13 +6,13 @@ from unittest.mock import patch, MagicMock
 import sys
 from pathlib import Path
 from subprocess import TimeoutExpired
-from zbx_1c_py.config import settings
-from zbx_1c_py.clusters import cluster_id
+from src.zbx_1c.core.config import settings
+from src.zbx_1c.monitoring.cluster.manager import cluster_id
 
 # Добавляем путь к src для импорта модулей проекта
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zbx_1c_py.session import get_session_command, fetch_raw_sessions, get_active_sessions_report
+from src.zbx_1c.monitoring.session.collector import get_session_command, fetch_raw_sessions, get_active_sessions_report
 
 
 class TestSessionModule:

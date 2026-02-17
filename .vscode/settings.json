@@ -71,9 +71,13 @@
     ],
     "git.autofetch": true,
     "python.analysis.extraPaths": [
-        "./src/zbx_1c_py"
+        "./src"
     ],
+    "python.defaultInterpreterPath": "./.venv/Scripts/python.exe",
+    "python.terminal.activateEnvironment": true,
     "cSpell.words": [
+        "gaierror",
+        "redoc",
         "utills"
     ]
 }

@@ -9,7 +9,7 @@ from pathlib import Path
 # Добавляем путь к src для импорта модулей проекта
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zbx_1c_py.session_active import is_session_active, filter_active_sessions, get_session_summary
+from src.zbx_1c.monitoring.session.filters import is_session_active, filter_active_sessions, get_session_summary
 
 
 class TestSessionActiveModule:

@@ -8,7 +8,7 @@ from pathlib import Path
 # Добавляем путь к src для импорта модулей проекта
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zbx_1c_py.utils.helpers import universal_filter, parse_rac_output, decode_output
+from src.zbx_1c.utils.converters import universal_filter, parse_rac_output, decode_output
 
 
 class TestUtilsModule:

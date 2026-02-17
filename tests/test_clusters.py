@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 # Local imports after path setup
-from zbx_1c_py.clusters import (
+from src.zbx_1c.monitoring.cluster.manager import (
     check_ras_availability,
     get_all_clusters,
     initialize_cluster_info,

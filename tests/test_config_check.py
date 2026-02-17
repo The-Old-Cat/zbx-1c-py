@@ -11,7 +11,7 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zbx_1c_py.utils.check_config import (
+from src.zbx_1c.cli.zabbix_config import (
     check_executable_access,
     check_log_directory,
     check_ras_connection,

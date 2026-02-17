@@ -1,13 +1,11 @@
 [project]
-name = "zbx_1c_py"
+name = "zbx_1c"
 version = "0.1.0"
 description = "Кроссплатформенный инструмент для интеграции 1С:Предприятия с системой мониторинга Zabbix"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
-authors = [
-    {name = "Author", email = "author@example.com"},
-]
+license = { text = "MIT" }
+authors = [{ name = "Author", email = "author@example.com" }]
 keywords = ["zabbix", "monitoring", "1c", "integration", "enterprise"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -25,6 +23,8 @@ dependencies = [
     "pydantic>=2.6.0",
     "pydantic-settings>=2.12.0",
     "psutil>=5.9.0",
+    "fastapi>=0.129.0",
+    "uvicorn>=0.40.0",
 ]
 
 [project.optional-dependencies]
@@ -52,25 +52,29 @@ dev = [
 ]
 
 [project.scripts]
-zbx-1c-discovery = "zbx_1c_py.main:main"
-zbx-1c-check-ras = "zbx_1c_py.main:main"
-zbx-1c-monitor = "zbx_1c_py.main:main"
-check-config = "zbx_1c_py.utils.check_config:main"
-
+zbx-1c = "zbx_1c.cli.commands:cli"
+zbx-1c-discovery = "zbx_1c.cli.commands:discovery"
+zbx-1c-check-ras = "zbx_1c.cli.commands:check_ras"
+zbx-1c-monitor = "zbx_1c.cli.commands:monitor"
+zbx-1c-metrics = "zbx_1c.cli.commands:get_metrics"
+zbx-1c-infobases = "zbx_1c.cli.commands:get_infobases"
+zbx-1c-sessions = "zbx_1c.cli.commands:get_sessions"
+zbx-1c-jobs = "zbx_1c.cli.commands:get_jobs"
+zbx-1c-test = "zbx_1c.cli.commands:test_connection"
 [project.urls]
-Homepage = "https://github.com/your-repo/zbx-1c-py"
-Repository = "https://github.com/your-repo/zbx-1c-py"
-Documentation = "https://github.com/your-repo/zbx-1c-py/blob/main/docs/index.md"
+Homepage = "https://github.com/your-repo/zbx-1c"
+Repository = "https://github.com/your-repo/zbx-1c"
+Documentation = "https://github.com/your-repo/zbx-1c/blob/main/docs/index.md"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/zbx_1c_py"]
+packages = ["src/zbx_1c"]
 
 [tool.hatch.version]
-path = "src/zbx_1c_py/__init__.py"
+path = "src/zbx_1c/__init__.py"
 
 [tool.black]
 line-length = 100
@@ -79,11 +83,7 @@ target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
-addopts = [
-    "-ra",
-    "--strict-markers",
-    "--strict-config",
-]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
 markers = [
     "slow: marks tests as slow",
     "integration: marks tests as integration tests",
@@ -92,11 +92,7 @@ markers = [
 
 [tool.coverage.run]
 source = ["src"]
-omit = [
-    "*/tests/*",
-    "*/conftest.py",
-    "*/__init__.py",
-]
+omit = ["*/tests/*", "*/conftest.py", "*/__init__.py"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -135,3 +131,9 @@ disable = [
 # Указываем линтеру, что корень кода — это папка src
 init-hook = "import sys; sys.path.append('src')"
 load-plugins = ["pylint_pydantic"]
+
+[tool.pyright]
+include = ["src"]
+extraPaths = ["src"]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
