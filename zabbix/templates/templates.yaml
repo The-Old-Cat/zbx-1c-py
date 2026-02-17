@@ -25,7 +25,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.metrics.active_bg_jobs
+                    - $.active_bg_jobs
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -41,7 +41,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.metrics.active_sessions
+                    - $.active_sessions
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -57,7 +57,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.metrics.status
+                    - $.status
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -66,7 +66,7 @@ zabbix_export:
               trigger_prototypes:
                 - uuid: 9bfcff8dca104cc3858b9fe4c5dda072
                   expression: "last(/1C Enterprise Monitoring/zbx1cpy.cluster.status[{#CLUSTER.ID}])=0"
-                  name: "1C: Cluster status [{#CLUSTER.NAME}]"
+                  name: "1C: Cluster status [{#CLUSTER_NAME}]"
                   priority: HIGH
             - uuid: 5707738fa1a6433ca7f4911edc3cff0f
               name: "1C: Total sessions [{#CLUSTER.NAME}]"
@@ -78,7 +78,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.metrics.total_sessions
+                    - $.total_sessions
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -91,6 +91,10 @@ zabbix_export:
               value_type: LOG
               trends: "0"
               description: "Сырые данные после обнаружения"
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.metrics
               tags:
                 - tag: App
                   value: 1С
