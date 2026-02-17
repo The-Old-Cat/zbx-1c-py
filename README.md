@@ -93,7 +93,7 @@ cp .env.example .env
 ```env
 # Путь к утилите rac (различается в зависимости от ОС)
 # Windows:
-# RAC_PATH=C:/Program Files/1cv8/rac.exe
+# RAC_PATH=C:/Program Files/1cv8/8.3.x.x/bin/rac.exe
 # Linux:
 # RAC_PATH=/opt/1C/v8.3/x.x.x.x/rac
 # macOS:
