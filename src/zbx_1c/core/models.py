@@ -24,6 +24,7 @@ class ClusterInfo(BaseModel):
             "{#CLUSTER.NAME}": self.name,
             "{#CLUSTER.HOST}": self.host,
             "{#CLUSTER.PORT}": self.port,
+            "{#CLUSTER.STATUS}": self.status,
         }
 
     @classmethod
@@ -110,7 +111,6 @@ class ClusterMetrics(BaseModel):
     total_jobs: int
     active_jobs: int
     total_infobases: int = 0
-    status: str
     timestamp: datetime = Field(default_factory=datetime.now)
 
     # Для Zabbix trapper
@@ -121,5 +121,4 @@ class ClusterMetrics(BaseModel):
             {"key": "zbx1cpy.cluster.total_jobs", "value": self.total_jobs},
             {"key": "zbx1cpy.cluster.active_jobs", "value": self.active_jobs},
             {"key": "zbx1cpy.cluster.total_infobases", "value": self.total_infobases},
-            {"key": "zbx1cpy.cluster.status", "value": self.status},
         ]

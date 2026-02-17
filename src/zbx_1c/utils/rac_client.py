@@ -19,7 +19,9 @@ class RACClient:
             settings: Настройки приложения (опционально)
         """
         self.settings = settings
-        self.encodings = ["cp866", "cp1251", "utf-8"]
+        # Порядок кодировок важен: сначала пробуем UTF-8 (современные версии 1С),
+        # затем CP866 (классическая кодировка 1С на Windows), потом CP1251
+        self.encodings = ["utf-8", "cp866", "cp1251"]
         self.timeout = getattr(settings, 'command_timeout', 30) if settings else 30
 
     def execute(self, cmd_parts: List[str]) -> Optional[Dict[str, Any]]:
@@ -50,11 +52,11 @@ class RACClient:
                 except Exception:
                     continue
 
-            # Если ничего не сработало, используем cp866 по умолчанию
+            # Если ничего не сработало, используем UTF-8 по умолчанию
             return {
                 "returncode": result.returncode,
-                "stdout": result.stdout.decode("cp866", errors="replace"),
-                "stderr": result.stderr.decode("cp866", errors="replace"),
+                "stdout": result.stdout.decode("utf-8", errors="replace"),
+                "stderr": result.stderr.decode("utf-8", errors="replace"),
             }
 
         except Exception as e:
