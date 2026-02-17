@@ -20,14 +20,22 @@ from typing import List, Dict, Any
 # ============================================================================
 
 
-def is_session_active(session: Dict[str, Any], threshold_minutes: int = 5) -> bool:
+def is_session_active(
+    session: Dict[str, Any],
+    threshold_minutes: int = 5,
+    check_activity: bool = False,
+    check_traffic: bool = False,
+    min_calls: int = 0,
+    min_bytes: int = 0,
+) -> bool:
     """
     Определяет, является ли сессия 1С активной (пользователь реально работает).
 
-    Активная сессия должна соответствовать ВСЕМ критериям:
+    Активная сессия должна соответствовать ВСЕМ включённым критериям:
     ✅ 1. Не находится в спящем режиме (hibernate == 'no')
     ✅ 2. Последняя активность была менее `threshold_minutes` минут назад
-    ✅ 3. Есть фактическая активность за последние 5 минут (вызовы ИЛИ трафик > 0)
+    ✅ 3. (опционально) Есть фактическая активность за последние 5 минут (вызовы)
+    ✅ 4. (опционально) Есть трафик за последние 5 минут
 
     Почему все три критерия?
     -------------------------
@@ -43,6 +51,12 @@ def is_session_active(session: Dict[str, Any], threshold_minutes: int = 5) -> bo
                                   Обязательные поля: 'hibernate', 'last-active-at'.
                                   Рекомендуемые поля: 'calls-last-5min', 'bytes-last-5min'.
         threshold_minutes (int): Порог активности в минутах. По умолчанию 5 минут.
+        check_activity (bool): Проверять активность по calls-last-5min.
+                               Если True — сессия активна только если calls >= min_calls.
+        check_traffic (bool): Проверять трафик по bytes-last-5min.
+                              Если True — сессия активна только если bytes >= min_bytes.
+        min_calls (int): Минимальное количество вызовов за 5 минут для активности.
+        min_bytes (int): Минимальный объём трафика в байтах за 5 минут для активности.
 
     Возвращает:
         bool: True — сессия активна, False — сессия неактивна или некорректна.
@@ -55,6 +69,10 @@ def is_session_active(session: Dict[str, Any], threshold_minutes: int = 5) -> bo
         ...     'bytes-last-5min': '103675'
         ... }
         >>> is_session_active(session)
+        True
+
+        >>> # Строгая проверка: требует вызовы И трафик
+        >>> is_session_active(session, check_activity=True, check_traffic=True, min_calls=10, min_bytes=1000)
         True
 
         >>> session = {
@@ -117,31 +135,34 @@ def is_session_active(session: Dict[str, Any], threshold_minutes: int = 5) -> bo
         return False
 
     # -------------------------------------------------------------------------
-    # КРИТЕРИЙ 3: Проверка фактической активности за последние 5 минут
+    # КРИТЕРИЙ 3: Проверка фактической активности за последние 5 минут (ОПЦИОНАЛЬНО)
     # -------------------------------------------------------------------------
-    # Даже если сессия не в спящем режиме и время активности свежее,
-    # пользователь может не взаимодействовать с системой (просто открыто окно).
-    #
-    # Проверяем два индикатора реальной активности:
-    #   • calls-last-5min — количество вызовов сервера за последние 5 минут
-    #   • bytes-last-5min — объём переданных данных за последние 5 минут
-    #
-    # -------------------------------------------------------------------------
-    # КРИТЕРИЙ 3: Проверка фактической активности за последние 5 минут
-    # -------------------------------------------------------------------------
-    # Даже если сессия не в спящем режиме и время активности свежее,
-    # пользователь может не взаимодействовать с системой (просто открыто окно).
-    #
-    # Проверяем два индикатора реальной активности:
-    #   • calls-last-5min — количество вызовов сервера за последние 5 минут
-    #   • bytes-last-5min — объём переданных данных за последние 5 минут
-    # -------------------------------------------------------------------------
-    # УДАЛЯЕМ ИЛИ КОММЕНТИРУЕМ СТРОГОЕ УСЛОВИЕ:
-    # if calls == 0 and bytes_ == 0:
-    #     return False
+    # Если check_activity=True, проверяем количество вызовов сервера
+    if check_activity:
+        try:
+            calls_str = session.get("calls-last-5min", "0")
+            calls = int(calls_str) if calls_str else 0
+            if calls < min_calls:
+                return False
+        except (ValueError, TypeError):
+            # Если не удалось преобразовать, считаем что вызовов не было
+            if min_calls > 0:
+                return False
 
-    # Вместо него просто оставляем прохождение теста,
-    # так как первые два критерия уже подтвердили «свежесть» сессии.
+    # -------------------------------------------------------------------------
+    # КРИТЕРИЙ 4: Проверка трафика за последние 5 минут (ОПЦИОНАЛЬНО)
+    # -------------------------------------------------------------------------
+    # Если check_traffic=True, проверяем объём переданных данных
+    if check_traffic:
+        try:
+            bytes_str = session.get("bytes-last-5min", "0")
+            bytes_ = int(bytes_str) if bytes_str else 0
+            if bytes_ < min_bytes:
+                return False
+        except (ValueError, TypeError):
+            # Если не удалось преобразовать, считаем что трафика не было
+            if min_bytes > 0:
+                return False
 
     # -------------------------------------------------------------------------
     # ИТОГ: Все критерии пройдены → сессия активна
@@ -150,7 +171,12 @@ def is_session_active(session: Dict[str, Any], threshold_minutes: int = 5) -> bo
 
 
 def filter_active_sessions(
-    sessions: List[Dict[str, Any]], threshold_minutes: int = 5
+    sessions: List[Dict[str, Any]],
+    threshold_minutes: int = 5,
+    check_activity: bool = False,
+    check_traffic: bool = False,
+    min_calls: int = 0,
+    min_bytes: int = 0,
 ) -> List[Dict[str, Any]]:
     """
     Фильтрует список сессий, оставляя только активные.
@@ -160,13 +186,18 @@ def filter_active_sessions(
                                          Каждый словарь должен содержать поля,
                                          ожидаемые функцией is_session_active().
         threshold_minutes (int): Порог активности в минутах. По умолчанию 5.
+        check_activity (bool): Проверять активность по calls-last-5min.
+        check_traffic (bool): Проверять трафик по bytes-last-5min.
+        min_calls (int): Минимальное количество вызовов за 5 минут.
+        min_bytes (int): Минимальный объём трафика в байтах за 5 минут.
 
     Возвращает:
         List[Dict[str, Any]]: Список активных сессий (фильтрованная копия входного списка).
 
     Пример использования:
         >>> all_sessions = parse_rac_output(rac_stdout)
-        >>> active = filter_active_sessions(all_sessions, threshold_minutes=5)
+        >>> # Строгая фильтрация: только сессии с вызовами >= 10 и трафиком >= 1000 байт
+        >>> active = filter_active_sessions(all_sessions, check_activity=True, check_traffic=True, min_calls=10, min_bytes=1000)
         >>> print(f"Активных сессий: {len(active)}")
         Активных сессий: 3
 
@@ -176,9 +207,16 @@ def filter_active_sessions(
         • Для каждой сессии вызывается is_session_active().
     """
     return [
-        s  # 's' — стандартное имя для элемента в итерации (избегает конфликтов с 'session')
+        s
         for s in sessions
-        if is_session_active(s, threshold_minutes=threshold_minutes)
+        if is_session_active(
+            s,
+            threshold_minutes=threshold_minutes,
+            check_activity=check_activity,
+            check_traffic=check_traffic,
+            min_calls=min_calls,
+            min_bytes=min_bytes,
+        )
     ]
 
 
