@@ -5,7 +5,7 @@ description = "Кроссплатформенный инструмент для 
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Author", email = "author@example.com" }]
+authors = [{ name = "Артем Коваленко", email = "ar-kovale@yandex.ru" }]
 keywords = ["zabbix", "monitoring", "1c", "integration", "enterprise"]
 classifiers = [
     "Development Status :: 4 - Beta",
