@@ -240,6 +240,7 @@ uv run zbx-1c metrics --config /path/to/.env
 | `sessions` | `zbx-1c-sessions` | Получение сессий кластера | `<cluster_id>` |
 | `jobs` | `zbx-1c-jobs` | Получение фоновых заданий | `<cluster_id>` |
 | `metrics` | `zbx-1c-metrics` | Получение метрик (для Zabbix) | `[cluster_id]` |
+| `status` | `zbx-1c-status` | Статус кластера | `<cluster_id>` |
 | `all` | — | Вся информация о кластере | `<cluster_id>` |
 | `test` | `zbx-1c-test` | Тестирование подключения | — |
 | `monitor` | `zbx-1c-monitor` | Мониторинг (алиас `metrics`) | `[cluster_id]` |
@@ -640,6 +641,59 @@ UserParameter=zbx1cpy.metrics[*],zbx-1c-metrics $1
 
 ---
 
+#### `status <cluster_id>` — Статус кластера
+
+Получает статус указанного кластера в текстовом формате для использования в Zabbix UserParameter.
+
+**Синоним:** `zbx-1c-status`
+
+**Аргументы:**
+| Аргумент | Описание |
+|----------|----------|
+| `cluster_id` | UUID кластера 1С |
+
+**Опции:**
+| Опция | Краткая | Описание | По умолчанию |
+|-------|---------|----------|--------------|
+| `--config` | `-c` | Путь к файлу конфигурации `.env` | `.env` |
+
+**Примеры:**
+```bash
+# Статус конкретного кластера
+zbx-1c status f93863ed-3fdb-4e01-a74c-e112c81b053b
+
+# Через entry point
+zbx-1c-status f93863ed-3fdb-4e01-a74c-e112c81b053b
+
+# С конфигурацией
+zbx-1c status f93863ed-3fdb-4e01-a74c-e112c81b053b -c .env.prod
+```
+
+**Пример вывода:**
+```
+available
+```
+
+**Возможные значения:**
+- `available` — кластер доступен (порт отвечает)
+- `unavailable` — кластер недоступен (порт не отвечает)
+- `unknown` — не удалось определить статус (ошибка или кластер не найден)
+
+**Использование в Zabbix:**
+```ini
+UserParameter=zbx1cpy.cluster.status[*],zbx-1c-status $1
+```
+
+**Настройка элемента данных:**
+| Параметр | Значение |
+|----------|----------|
+| **Type** | Zabbix agent |
+| **Key** | `zbx1cpy.cluster.status[{#ID}]` |
+| **Type of information** | Text |
+| **Preprocessing** | Map value: available→1, unavailable→0, unknown→2 |
+
+---
+
 #### `all <cluster_id>` — Полная информация о кластере
 
 Получает всю доступную информацию о кластере: данные кластера, информационные базы, сессии, задания и статистику.
@@ -1004,6 +1058,8 @@ Copy-Item "zabbix\userparameters\userparameter_1c.conf" `
 sudo cp zabbix/userparameters/userparameter_1c.conf /etc/zabbix/zabbix_agentd.d/
 ```
 
+> **Важно:** Отредактируйте пути к Python и проекту в файле `userparameter_1c.conf` под вашу среду!
+
 #### 4. Перезапуск Zabbix Agent
 
 **Windows:**
@@ -1020,30 +1076,74 @@ sudo systemctl restart zabbix-agent
 
 ```bash
 # Windows
-& "C:\Program Files\Zabbix Agent 2\zabbix_get.exe" -s localhost -k "zbx1cpy.test"
 & "C:\Program Files\Zabbix Agent 2\zabbix_get.exe" -s localhost -k "zbx1cpy.clusters.discovery"
-& "C:\Program Files\Zabbix Agent 2\zabbix_get.exe" -s localhost -k "zbx1cpy.metrics[<cluster_id>]"
+& "C:\Program Files\Zabbix Agent 2\zabbix_get.exe" -s localhost -k "zbx1cpy.cluster.status[f93863ed-3fdb-4e01-a74c-e112c81b053b]"
+& "C:\Program Files\Zabbix Agent 2\zabbix_get.exe" -s localhost -k "zbx1cpy.metrics[f93863ed-3fdb-4e01-a74c-e112c81b053b]"
 
 # Linux
-zabbix_get -s localhost -k "zbx1cpy.test"
 zabbix_get -s localhost -k "zbx1cpy.clusters.discovery"
-zabbix_get -s localhost -k "zbx1cpy.metrics[<cluster_id>]"
+zabbix_get -s localhost -k "zbx1cpy.cluster.status[f93863ed-3fdb-4e01-a74c-e112c81b053b]"
+zabbix_get -s localhost -k "zbx1cpy.metrics[f93863ed-3fdb-4e01-a74c-e112c81b053b]"
 ```
 
 ### UserParameter
 
-Сгенерированный файл содержит (используются entry points):
+Файл `userparameter_1c.conf` содержит (используются полные пути к Python):
 
 ```conf
-# Discovery: обнаружение кластеров (LLD)
-UserParameter=zbx1cpy.clusters.discovery,zbx-1c-discovery
+# Windows (Zabbix Agent 2)
+# Формат: cd /d "проект" && "python.exe" -m zbx_1c <command>
+# cd /d обеспечивает корректную кодировку UTF-8
 
-# Metrics: сбор метрик с параметром кластера ($1)
-UserParameter=zbx1cpy.metrics[*],zbx-1c-metrics $1
+# LLD Discovery: обнаружение кластеров
+UserParameter=zbx1cpy.clusters.discovery,cd /d "g:\Automation\zbx-1c-py" && "g:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c discovery
 
-# Тестовый параметр
-UserParameter=zbx1cpy.test,zbx-1c-test
+# Статус кластера (для Item Prototype)
+UserParameter=zbx1cpy.cluster.status[*],cd /d "g:\Automation\zbx-1c-py" && "g:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c status $1
+
+# Метрики кластера
+UserParameter=zbx1cpy.metrics[*],cd /d "g:\Automation\zbx-1c-py" && "g:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c metrics $1
+
+# Метрики всех кластеров (для Master Item)
+UserParameter=zbx1cpy.metrics.all,cd /d "g:\Automation\zbx-1c-py" && "g:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c metrics
+
+# Проверка RAS
+UserParameter=zbx1cpy.ras.check,cd /d "g:\Automation\zbx-1c-py" && "g:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c check-ras
 ```
+
+**Для Linux** используйте `scripts/generate_userparam_config.py --force-os linux`:
+
+```conf
+# Linux (Zabbix Agent 2)
+PYTHON_EXE=/opt/zbx-1c-py/.venv/bin/python
+PROJECT_DIR=/opt/zbx-1c-py
+
+# LLD Discovery
+UserParameter=zbx1cpy.clusters.discovery,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 cd "${PROJECT_DIR}" && "${PYTHON_EXE}" -m zbx_1c discovery
+
+# Статус кластера
+UserParameter=zbx1cpy.cluster.status[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 cd "${PROJECT_DIR}" && "${PYTHON_EXE}" -m zbx_1c status $1
+
+# Метрики кластера
+UserParameter=zbx1cpy.metrics[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 cd "${PROJECT_DIR}" && "${PYTHON_EXE}" -m zbx_1c metrics $1
+```
+
+**Автоматическая генерация:**
+
+```bash
+# Сгенерировать конфиг для текущей ОС
+python scripts/generate_userparam_config.py
+
+# Сгенерировать для Linux
+python scripts/generate_userparam_config.py --force-os linux
+
+# Свой путь вывода
+python scripts/generate_userparam_config.py -o /etc/zabbix/zabbix_agent2.d/userparameter_1c.conf
+```
+
+**Важно:** 
+- Windows: Используйте `cd /d` вместо `chcp 65001` для корректной кодировки
+- Linux: Используйте `LANG=C.UTF-8 PYTHONIOENCODING=utf-8` для UTF-8 вывода
 
 ### Импорт шаблона Zabbix
 

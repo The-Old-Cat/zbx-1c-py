@@ -93,6 +93,19 @@ def check_ras_availability(settings: Settings) -> bool:
 
 def discover_clusters(settings: Settings) -> List[Dict]:
     """Обнаружение кластеров"""
+    import socket
+    
+    def check_status(host: str, port: int) -> str:
+        """Проверка статуса кластера"""
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(settings.rac_timeout)
+            result = sock.connect_ex((host, port))
+            sock.close()
+            return "available" if result == 0 else "unavailable"
+        except Exception:
+            return "unknown"
+    
     cmd_parts = [
         str(settings.rac_path),
         "cluster",
@@ -110,12 +123,14 @@ def discover_clusters(settings: Settings) -> List[Dict]:
 
     for data in clusters_data:
         try:
+            cluster_host = data.get("host", settings.rac_host)
+            cluster_port = int(data.get("port", settings.rac_port))
             cluster = {
                 "id": data.get("cluster"),
                 "name": data.get("name", "unknown"),
-                "host": data.get("host", settings.rac_host),
-                "port": data.get("port", settings.rac_port),
-                "status": "unknown",
+                "host": cluster_host,
+                "port": cluster_port,
+                "status": check_status(cluster_host, cluster_port),
             }
 
             if cluster["id"]:
@@ -403,14 +418,12 @@ def get_metrics(
                 "cluster": {
                     "id": cluster["id"],
                     "name": cluster["name"],
-                    "status": cluster["status"],
                 },
                 "metrics": {
                     "total_sessions": total_sessions,
                     "active_sessions": active_sessions,
                     "total_jobs": total_jobs,
                     "active_bg_jobs": active_jobs,
-                    "status": 1,
                 },
             }
 
@@ -427,7 +440,7 @@ def get_metrics(
 
                 # total_sessions — общее количество сессий
                 total_sessions = len(sessions)
-                
+
                 # active_sessions — сессии, которые не в hibernate И имеют активность
                 # Используем строгую фильтрацию: hibernate=no + calls >= 1
                 from ..monitoring.session.filters import is_session_active
@@ -451,14 +464,12 @@ def get_metrics(
                         "cluster": {
                             "id": cid,
                             "name": cluster["name"],
-                            "status": cluster["status"],
                         },
                         "metrics": {
                             "total_sessions": total_sessions,
                             "active_sessions": active_sessions,
                             "total_jobs": total_jobs,
                             "active_bg_jobs": active_jobs,
-                            "status": 1,
                         },
                     }
                 )
@@ -522,6 +533,39 @@ def get_all(cluster_id: str, config: str):
     except Exception as e:
         logger.error(f"Failed to get cluster info: {e}")
         sys.exit(1)
+
+
+@cli.command("status")
+@click.argument("cluster_id")
+@click.option("--config", "-c", help="Path to config file", default=".env")
+def get_cluster_status(cluster_id: str, config: str):
+    """
+    Получение статуса кластера (available/unavailable/unknown)
+
+    Выводит только статус для использования в Zabbix UserParameter
+    """
+    try:
+        settings = load_settings(config)
+        cluster_id = cluster_id.strip("[]\"'")
+
+        # Находим кластер в списке
+        clusters = discover_clusters(settings)
+        cluster = next((c for c in clusters if c["id"] == cluster_id), None)
+
+        if not cluster:
+            # Кластер не найден — unknown
+            click.echo("unknown")
+            sys.exit(0)
+
+        # Выводим только статус
+        status = cluster.get("status", "unknown")
+        click.echo(status)
+
+    except Exception as e:
+        logger.error(f"Failed to get cluster status: {e}")
+        # При ошибке возвращаем unknown
+        click.echo("unknown")
+        sys.exit(0)
 
 
 @cli.command("test")
