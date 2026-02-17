@@ -3,6 +3,7 @@
 Работает точно так же как в run_direct.py
 """
 
+import socket
 from typing import List, Dict, Optional
 from loguru import logger
 
@@ -14,6 +15,33 @@ from ...utils.converters import (
     parse_sessions,
     parse_jobs,
 )
+
+
+def check_cluster_status(host: str, port: int, timeout: int = 5) -> str:
+    """
+    Проверка статуса кластера через подключение к рабочему серверу 1С
+    
+    Args:
+        host: Хост рабочего сервера
+        port: Порт рабочего сервера
+        timeout: Таймаут подключения
+        
+    Returns:
+        Статус кластера: "available", "unavailable" или "unknown"
+    """
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((host, port))
+        sock.close()
+        
+        if result == 0:
+            return "available"
+        else:
+            return "unavailable"
+    except Exception as e:
+        logger.warning(f"Failed to check cluster status for {host}:{port}: {e}")
+        return "unknown"
 
 
 class ClusterManager:
@@ -68,12 +96,16 @@ class ClusterManager:
                     "name": data.get("name", "unknown"),
                     "host": data.get("host", self.settings.rac_host),
                     "port": data.get("port", self.settings.rac_port),
-                    "status": "unknown",
+                    "status": check_cluster_status(
+                        data.get("host", self.settings.rac_host),
+                        int(data.get("port", self.settings.rac_port)),
+                        timeout=self.settings.rac_timeout
+                    ),
                 }
 
                 if cluster["id"]:
                     clusters.append(cluster)
-                    logger.debug(f"Найден кластер: {cluster['name']} ({cluster['id']})")
+                    logger.debug(f"Найден кластер: {cluster['name']} ({cluster['id']}) [status: {cluster['status']}]")
             except Exception as e:
                 logger.error(f"Ошибка парсинга кластера: {e}")
 
@@ -201,6 +233,9 @@ class ClusterManager:
         sessions = self.get_sessions(cluster_id)
         jobs = self.get_jobs(cluster_id)
 
+        if sessions is None:
+            sessions = []
+
         # Подсчет метрик
         total_sessions = len(sessions)
         active_sessions = sum(
@@ -214,7 +249,7 @@ class ClusterManager:
             "cluster": {
                 "id": cluster["id"],
                 "name": cluster["name"],
-                "status": cluster["status"],
+                "status": cluster["status"],  # Статус для отправки в Zabbix
             },
             "metrics": {
                 "total_sessions": total_sessions,

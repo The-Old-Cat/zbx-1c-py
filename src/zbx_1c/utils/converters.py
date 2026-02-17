@@ -179,7 +179,7 @@ def parse_clusters(output: str) -> List[Dict[str, Any]]:
             "name": item.get("name", "unknown"),
             "host": item.get("host"),
             "port": item.get("port"),
-            "status": "unknown",
+            "status": "unknown",  # Будет определён в ClusterManager/discover_clusters
         }
         clusters.append(cluster)
 
@@ -218,6 +218,7 @@ def format_lld_data(clusters: List[Dict[str, Any]]) -> Dict[str, Any]:
                 "{#CLUSTER.NAME}": c.get("name", "unknown"),
                 "{#CLUSTER.HOST}": c.get("host", ""),
                 "{#CLUSTER.PORT}": c.get("port", ""),
+                "{#CLUSTER.STATUS}": c.get("status", "unknown"),
             }
             for c in clusters
             if c.get("id")

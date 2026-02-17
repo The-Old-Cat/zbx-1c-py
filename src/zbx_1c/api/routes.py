@@ -19,7 +19,16 @@ async def get_clusters_discovery():
         manager = ClusterManager(settings)
         clusters = manager.discover_clusters()
 
-        return {"data": clusters}
+        # Форматируем для LLD с использованием to_lld()
+        lld_data = {"data": [c.to_lld() if hasattr(c, 'to_lld') else {
+            "{#CLUSTER.ID}": c.get("id", ""),
+            "{#CLUSTER.NAME}": c.get("name", "unknown"),
+            "{#CLUSTER.HOST}": c.get("host", ""),
+            "{#CLUSTER.PORT}": c.get("port", ""),
+            "{#CLUSTER.STATUS}": c.get("status", "unknown"),
+        } for c in clusters if c.get("id") or hasattr(c, 'id')]}
+
+        return lld_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
