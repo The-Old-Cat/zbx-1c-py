@@ -12,7 +12,7 @@ import pytest
 # Добавляем путь к src для импорта модулей проекта
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zbx_1c_py.config import settings
+from src.zbx_1c.core.config import settings
 
 
 class TestCrossPlatform:

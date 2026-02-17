@@ -18,7 +18,7 @@ from typing import Dict, List, Tuple
 # Добавляем путь к src для импорта модулей проекта
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from zbx_1c_py.config import settings
+from src.zbx_1c.core.config import settings
 
 
 def check_executable_access(path: str) -> Tuple[bool, str]:

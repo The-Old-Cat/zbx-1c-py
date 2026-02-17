@@ -1,180 +1,395 @@
 # Интеграция с Zabbix
 
-## Общая схема интеграции
+## Обзор
 
-Проект zbx-1c-py предназначен для интеграции с системой мониторинга Zabbix и предоставляет возможность мониторинга кластеров 1С:Предприятия, сессий пользователей и фоновых заданий. Проект кроссплатформенный и работает на Windows, Linux и macOS.
+Проект zbx-1c-py обеспечивает полную интеграцию 1С:Предприятия с системой мониторинга Zabbix через:
 
-## Поддерживаемые режимы работы
+1. **UserParameter** - вызов Python скриптов из Zabbix Agent
+2. **LLD (Low Level Discovery)** - автоматическое обнаружение кластеров
+3. **Шаблоны** - готовые элементы данных, триггеры, графики
+4. **REST API** - для интеграции через Zabbix HTTP checks
 
-### 1. Low-Level Discovery (LLD)
+---
 
-Режим автоматического обнаружения кластеров 1С позволяет Zabbix автоматически создавать элементы данных для каждого обнаруженного кластера.
-
-**Команда**:
-```
-python3 /path/to/zbx_1c_py/main.py --discovery
-```
-
-**Пример использования в Zabbix**:
-- Создайте элемент данных типа "Zabbix agent" с ключом, который возвращает результат команды discovery
-- Используйте полученный JSON для создания прототипов элементов данных
-
-### 2. Сбор метрик
-
-Для каждого кластера можно собирать следующие метрики:
-- Общее количество сессий
-- Количество активных сессий
-- Количество активных фоновых заданий
-- Статус кластера
-
-## Настройка Zabbix Agent
-
-### UserParameter
-
-Добавьте следующие строки в конфигурационный файл Zabbix Agent (обычно `zabbix_agentd.conf`):
+## Архитектура интеграции
 
 ```
-# Обнаружение кластеров 1С
-UserParameter=1c.cluster.discovery[*],cd /path/to/zbx-1c-py && uv run python3 src/zbx_1c_py/main.py --discovery
-
-# Проверка доступности RAS
-UserParameter=1c.ras.check[*],cd /path/to/zbx-1c-py && uv run python3 src/zbx_1c_py/main.py --check-ras
-
-# Сбор метрик для конкретного кластера
-UserParameter=1c.cluster.metrics[*],cd /path/to/zbx-1c-py && uv run python3 src/zbx_1c_py/main.py $1
-
-# Получение отдельных метрик с использованием JSONPath
-UserParameter=1c.cluster.sessions.total[*],cd /path/to/zbx-1c-py && uv run python3 src/zbx_1c_py/main.py $1 | jq -r '.metrics.total_sessions'
-UserParameter=1c.cluster.sessions.active[*],cd /path/to/zbx-1c-py && uv run python3 src/zbx_1c_py/main.py $1 | jq -r '.metrics.active_sessions'
-UserParameter=1c.cluster.jobs.active[*],cd /path/to/zbx-1c-py && uv run python3 src/zbx_1c_py/main.py $1 | jq -r '.metrics.active_bg_jobs'
-UserParameter=1c.cluster.status[*],cd /path/to/zbx-1c-py && uv run python3 src/zbx_1c_py/main.py $1 | jq -r '.metrics.status'
+┌─────────────┐      ┌──────────────┐      ┌─────────────┐
+│   Zabbix    │ ───► │ Zabbix Agent │ ───► │  zbx-1c-py  │
+│   Server    │      │  (UserParam) │      │   (Python)  │
+└─────────────┘      └──────────────┘      └─────────────┘
+                           │                      │
+                           │                      ▼
+                           │              ┌───────────────┐
+                           │              │  RAC/rac.exe  │
+                           │              │ 1С:Предприятие│
+                           │              └───────────────┘
+                           ▼
+                    ┌──────────────┐
+                    │1С:Предприятие│
+                    │   RAS 1545   │
+                    └──────────────┘
 ```
 
-**Важно**: Замените `/path/to/zbx-1c-py` на актуальный путь к проекту в вашей системе. Учтите различия в пути между операционными системами:
-- Linux/macOS: `/opt/zbx-1c-py/`
-- Windows: `C:\Program Files\zbx-1c-py\`
+---
 
-Проект использует uv для изоляции от системного Python, что обеспечивает стабильность и воспроизводимость работы. Убедитесь, что uv установлен в системе, где работает Zabbix Agent.
+## Установка и настройка
 
-## Шаблон Zabbix
+### Шаг 1: Установка Python и зависимостей
 
-### Создание шаблона
+```bash
+# Установка uv (рекомендуется)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-Для удобства можно создать шаблон Zabbix с преднастроенными элементами данных:
+# Установка проекта
+cd .\Automation\zbx-1c-py
+uv sync
+```
 
-1. **Макросы шаблона**:
-   - `{$CLUSTER_ID}` - идентификатор кластера (для тестирования)
+### Шаг 2: Настройка .env
 
-2. **LLD правило**:
-   - Имя: "Обнаружение кластеров 1С"
-   - Тип: Zabbix agent
-   - Ключ: `1c.cluster.discovery[]`
-   - Тип прототипа: Text (JSON)
+```bash
+cp .env.example .env
+```
 
-3. **Прототипы элементов данных**:
-   - `{#CLUSTER_NAME}.sessions.total` - Общее количество сессий
-     - Ключ: `1c.cluster.sessions.total[{#CLUSTER_ID}]`
-     - Тип: Zabbix agent
-     - Интервал обновления: 30s
-     - Единицы измерения: 
+Отредактируйте `.env`:
 
-   - `{#CLUSTER_NAME}.sessions.active` - Активные сессии
-     - Ключ: `1c.cluster.sessions.active[{#CLUSTER_ID}]`
-     - Тип: Zabbix agent
-     - Интервал обновления: 30s
-     - Единицы измерения: 
+```env
+RAC_PATH=C:/Program Files/1cv8/х.х.х.х/bin/rac.exe
+RAC_HOST=127.0.0.1
+RAC_PORT=1545
+USER_NAME=admin
+USER_PASS=password
+LOG_PATH=G:/Automation/zbx-1c-py/logs
+DEBUG=False
+```
 
-   - `{#CLUSTER_NAME}.jobs.active` - Активные фоновые задания
-     - Ключ: `1c.cluster.jobs.active[{#CLUSTER_ID}]`
-     - Тип: Zabbix agent
-     - Интервал обновления: 30s
-     - Единицы измерения: 
+### Шаг 3: Генерация UserParameter
 
-   - `{#CLUSTER_NAME}.status` - Статус кластера
-     - Ключ: `1c.cluster.status[{#CLUSTER_ID}]`
-     - Тип: Zabbix agent
-     - Интервал обновления: 1m
-     - Тип данных: Boolean
+```bash
+python scripts/generate_userparam_config.py
+```
 
-## Использование JSONPath
+Скрипт создаст файл `zabbix/userparameters/userparameter_1c.conf`.
 
-Поскольку скрипт возвращает структурированные JSON-данные, вы можете использовать JSONPath для извлечения отдельных значений:
+### Шаг 4: Копирование конфигурации в Zabbix Agent
 
-**Примеры JSONPath выражений**:
-- `.cluster_id` - идентификатор кластера
-- `.cluster_name` - имя кластера
-- `.metrics.total_sessions` - общее количество сессий
-- `.metrics.active_sessions` - активные сессии
-- `.metrics.active_bg_jobs` - активные фоновые задания
-- `.metrics.status` - статус кластера
+**Windows:**
+```
+C:\Program Files\Zabbix Agent\zabbix_agentd.conf.d\userparameter_1c.conf
+```
 
-## Кроссплатформенные особенности
+**Linux:**
+```
+/etc/zabbix/zabbix_agentd.d/userparameter_1c.conf
+```
 
-### Пути к исполняемым файлам
-- **Linux**: `/opt/1C/v8.3/x.x.x.x/rac` (где x.x.x.x - номер версии)
-- **Windows**: `C:/Program Files/1cv8/x.x.x.x/rac.exe`
-- **macOS**: `/Applications/1C/Enterprise Platform/x.x.x.x/rac`
+### Шаг 5: Перезапуск Zabbix Agent
 
-### Настройка в Zabbix Agent
-При настройке UserParameter учитывайте различия в операционных системах:
-- В Windows может потребоваться указание полного пути к интерпретатору Python
-- В Linux/macOS могут отличаться права доступа к файлам
+**Windows:**
+```powershell
+net stop "Zabbix Agent"
+net start "Zabbix Agent"
+```
 
-### Кодировка
-Проект учитывает различия в кодировке между операционными системами:
-- Windows: по умолчанию используется CP866 для 1С
-- Linux/macOS: обычно UTF-8
-- Проект автоматически обрабатывает различия в кодировке
+**Linux:**
+```bash
+systemctl restart zabbix-agent
+```
 
-## Рекомендации по настройке
+### Шаг 6: Импорт шаблона в Zabbix
 
-### Интервалы обновления
-- Для метрик сессий и заданий: 30-60 секунд
-- Для статуса кластера: 1-5 минут
-- Для LLD: 10-30 минут (в зависимости от частоты изменений)
+1. В веб-интерфейсе Zabbix перейдите в **Data collection → Templates**
+2. Нажмите **Import**
+3. Выберите файл `zabbix/templates/template.xml`
+4. Нажмите **Import**
 
-### Триггеры
-Примеры триггеров, которые можно создать:
-- "Количество активных сессий превышает порог" (например, > 50)
-- "Количество активных фоновых заданий превышает порог" (например, > 10)
-- "Кластер недоступен" (статус = 0)
+### Шаг 7: Привязка шаблона к хосту
 
-### Графики
-Можно создать графики для визуализации:
-- Динамики количества сессий
-- Активности фоновых заданий
-- Сравнения нагрузки между кластерами
+1. Перейдите в **Data collection → Hosts**
+2. Выберите или создайте хост
+3. На вкладке **Templates** добавьте шаблон **Template 1C Cluster Monitoring**
+4. Настройте макросы (при необходимости):
+   - `{$RAC_HOST}` - хост RAS (по умолчанию: 127.0.0.1)
+   - `{$RAC_PORT}` - порт RAS (по умолчанию: 1545)
+   - `{$CLUSTER_ID}` - ID кластера (для LLD не требуется)
 
-## Устранение неполадок
+---
 
-### Проверка работоспособности
-1. Проверьте, что скрипт запускается вручную:
-   ```bash
-   python3 /path/to/zbx_1c_py/main.py --discovery
+## UserParameter
+
+### Сгенерированный файл (Windows пример)
+
+```conf
+# Configuration generated for Windows OS
+# Detected Zabbix Agent version: agent
+# Generated on: 2026-02-16 23:34:30
+# Project root: g:\Automation\zbx-1c-py
+# Mode: entry_points
+
+# Discovery: обнаружение кластеров (LLD)
+UserParameter=zbx1cpy.clusters.discovery, cmd /c chcp 65001 >nul & set PYTHONIOENCODING=utf-8 & "g:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c discovery
+
+# Metrics: сбор метрик с параметром кластера
+UserParameter=zbx1cpy.metrics[*], cmd /c chcp 65001 >nul & set PYTHONIOENCODING=utf-8 & "g:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c metrics $1
+
+# Test: тестовый параметр
+UserParameter=test.echo[*], "g:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -c "import sys; print(sys.executable)"
+```
+
+### Сгенерированный файл (Linux пример)
+
+```conf
+# Configuration generated for Linux OS
+# Detected Zabbix Agent version: agent2
+# Generated on: 2026-02-16 23:34:30
+# Project root: /opt/zbx-1c-py
+# Mode: entry_points
+
+# Discovery: обнаружение кластеров (LLD)
+UserParameter=zbx1cpy.clusters.discovery, PYTHONIOENCODING=utf-8 /opt/zbx-1c-py/.venv/bin/python -m zbx_1c discovery
+
+# Metrics: сбор метрик с параметром кластера
+UserParameter=zbx1cpy.metrics[*], PYTHONIOENCODING=utf-8 /opt/zbx-1c-py/.venv/bin/python -m zbx_1c metrics $1
+
+# Test: тестовый параметр
+UserParameter=test.echo[*], /opt/zbx-1c-py/.venv/bin/python -c "import sys; print(sys.executable)"
+```
+
+**Примечание:** На Linux пути не содержат кавычек, если не содержат пробелов.
+
+---
+
+## Элементы данных (Items)
+
+### Discovery
+
+| Ключ | Тип | Описание |
+|------|-----|----------|
+| `zbx1cpy.clusters.discovery` | Zabbix agent | Обнаружение кластеров 1С (LLD) |
+
+### Метрики кластера
+
+| Ключ | Тип данных | Единицы | Описание |
+|------|------------|---------|----------|
+| `zbx1cpy.metrics[{#CLUSTER.ID}]` | Numeric | | Метрики кластера (через LLD) |
+| `zbx1cpy.cluster.total_sessions` | Numeric | | Всего сессий |
+| `zbx1cpy.cluster.active_sessions` | Numeric | | Активных сессий |
+| `zbx1cpy.cluster.total_jobs` | Numeric | | Всего заданий |
+| `zbx1cpy.cluster.active_jobs` | Numeric | | Активных заданий |
+
+### Сессии
+
+| Ключ | Тип данных | Описание |
+|------|------------|----------|
+| `1c.sessions.count[{#CLUSTER.ID}]` | Numeric | Количество сессий |
+
+---
+
+## Low Level Discovery (LLD)
+
+### Правило обнаружения
+
+- **Name**: 1C Cluster Discovery
+- **Type**: Zabbix agent
+- **Key**: `zbx1cpy.clusters.discovery`
+- **Update interval**: 5m
+
+### Макросы LLD
+
+| Макрос | Описание |
+|--------|----------|
+| `{#CLUSTER.ID}` | UUID кластера |
+| `{#CLUSTER.NAME}` | Имя кластера |
+| `{#CLUSTER.HOST}` | Хост кластера |
+| `{#CLUSTER.PORT}` | Порт кластера |
+
+### Прототипы элементов данных
+
+Создаются автоматически для каждого обнаруженного кластера:
+
+- `1C Cluster: {#CLUSTER.NAME} - Total Sessions`
+- `1C Cluster: {#CLUSTER.NAME} - Active Sessions`
+- `1C Cluster: {#CLUSTER.NAME} - Total Jobs`
+- `1C Cluster: {#CLUSTER.NAME} - Active Jobs`
+
+---
+
+## Триггеры
+
+| Название | Выражение | Приоритет |
+|----------|-----------|-----------|
+| 1C Cluster {#CLUSTER.NAME}: No active sessions | `last(/Host/zbx1cpy.cluster.active_sessions[{#CLUSTER.ID}])=0` | Warning |
+| 1C Cluster {#CLUSTER.NAME}: Too many sessions | `last(/Host/zbx1cpy.cluster.total_sessions[{#CLUSTER.ID}])>50` | Average |
+| 1C Cluster {#CLUSTER.NAME}: Active jobs stuck | `last(/Host/zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}])>10` | Average |
+
+---
+
+## Графики
+
+### 1C Cluster Sessions
+
+- `zbx1cpy.cluster.total_sessions[{#CLUSTER.ID}]` (line)
+- `zbx1cpy.cluster.active_sessions[{#CLUSTER.ID}]` (line)
+
+### 1C Cluster Jobs
+
+- `zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]` (line)
+- `zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]` (line)
+
+---
+
+## Альтернативные способы интеграции
+
+### Через REST API
+
+Если Zabbix Server имеет доступ к API:
+
+1. Настройте HTTP agent item:
+   - **Type**: HTTP agent
+   - **URL**: `http://localhost:8000/clusters/discovery`
+   - **Update interval**: 5m
+
+2. Используйте JSONPath для парсинга:
+   - `$.data[*]` для LLD
+
+### Через External Check
+
+Для запуска на Zabbix Server:
+
+```bash
+# /etc/zabbix/externalscripts/1c_discovery.py
+#!/usr/bin/env python3
+import subprocess
+import json
+
+result = subprocess.run(
+    ["python", "-m", "zbx_1c", "discovery"],
+    capture_output=True,
+    text=True
+)
+print(result.stdout)
+```
+
+---
+
+## Проверка работы
+
+### Тестирование UserParameter
+
+**Windows:**
+```powershell
+# Discovery
+"C:\Program Files\Zabbix Agent\zabbix_agentd.exe" -t zbx1cpy.clusters.discovery
+
+# Metrics
+"C:\Program Files\Zabbix Agent\zabbix_agentd.exe" -t zbx1cpy.metrics[f93863ed-3fdb-4e01-a74c-e112c81b053b]
+```
+
+**Linux:**
+```bash
+# Discovery
+zabbix_get -s localhost -k zbx1cpy.clusters.discovery
+
+# Metrics
+zabbix_get -s localhost -k zbx1cpy.metrics[f93863ed-3fdb-4e01-a74c-e112c81b053b]
+```
+
+### Проверка в Zabbix
+
+1. Перейдите в **Data collection → Hosts**
+2. Выберите хост
+3. Перейдите на вкладку **Items**
+4. Проверьте **Last value** для элементов
+5. Проверьте **Latest data** для получения данных в реальном времени
+
+---
+
+## Устранение проблем
+
+### UserParameter не работает
+
+1. Проверьте логи Zabbix Agent:
+   ```
+   C:\Program Files\Zabbix Agent\zabbix_agentd.log
+   /var/log/zabbix/zabbix_agentd.log
    ```
 
-2. Убедитесь, что Zabbix Agent может выполнить команду:
+2. Проверьте права доступа к Python скрипту
+
+3. Убедитесь что путь к Python указан полностью
+
+### RAC не найден
+
+1. Проверьте путь в `.env`
+2. Убедитесь что rac.exe существует
+3. Проверьте права доступа
+
+### Нет данных от кластера
+
+1. Проверьте доступность RAS:
    ```bash
-   sudo -u zabbix zabbix_agentd -t "1c.cluster.discovery[]"
+   python -m zbx_1c check-ras
    ```
 
-3. Проверьте права доступа к файлам и каталогам
+2. Проверьте учетные данные в `.env`
 
-### Кроссплатформенные проблемы
-- **Windows**: Убедитесь, что путь к rac.exe указан с правильными разделителями (`\` или `/`)
-- **Linux**: Проверьте права доступа к исполняемым файлам 1С
-- **macOS**: Убедитесь, что 1С правильно установлена и доступна в PATH
+3. Проверьте логи:
+   ```
+   logs/zbx-1c-*.log
+   ```
 
-### Распространенные проблемы
-- Ошибка доступа к rac.exe - проверьте права пользователя zabbix
-- Неверный путь к скрипту - убедитесь, что путь указан правильно для конкретной ОС
-- Проблемы с сетью - проверьте доступность RAS-сервиса
-- Проблемы с кодировкой - убедитесь, что используется UTF-8
+---
+
+## Макросы на уровне шаблона
+
+| Макрос | Значение по умолчанию | Описание |
+|--------|----------------------|----------|
+| `{$RAC_HOST}` | 127.0.0.1 | Хост RAS сервера |
+| `{$RAC_PORT}` | 1545 | Порт RAS сервера |
+| `{$RAC_TIMEOUT}` | 30 | Таймаут подключения (сек) |
+| `{$CLUSTER_ID}` | | ID кластера (опционально) |
+
+---
+
+## Производительность
+
+### Рекомендуемые интервалы опроса
+
+| Тип | Интервал |
+|-----|----------|
+| Discovery | 5m |
+| Метрики | 1m |
+| Сессии | 2m |
+
+### Оптимизация
+
+1. Используйте кэширование в приложении
+2. Настройте правильный таймаут
+3. Используйте активные проверки для больших кластеров
+
+---
 
 ## Безопасность
 
-- Убедитесь, что учетные данные для доступа к кластеру 1С защищены
-- Ограничьте права доступа к файлу конфигурации
-- Регулярно обновляйте зависимости проекта
-- Используйте изолированную среду выполнения (virtual environment)
-- Учитывайте различия в системах безопасности между операционными системами
+1. Не храните пароли в репозитории
+2. Используйте `.env` файл с правами 600
+3. Настройте firewall для RAS порта
+4. Используйте отдельные учетные записи для мониторинга
+
+---
+
+## Мониторинг самого zbx-1c-py
+
+### Элементы для мониторинга
+
+- `zbx1c.ras.available` - доступность RAS
+- `zbx1c.clusters.count` - количество кластеров
+- `zbx1c.last.discovery` - время последнего обнаружения
+
+### Логи
+
+Настройте мониторинг логов через `log[]` item:
+```
+log["G:\Automation\zbx-1c-py\logs\zbx-1c-*.log",ERROR]
+```

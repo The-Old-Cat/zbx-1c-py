@@ -6,11 +6,11 @@ import subprocess
 import sys
 import importlib.util
 from pathlib import Path
-from zbx_1c_py.utils.check_config import main, validate_settings
+from src.zbx_1c.cli.zabbix_config import main, validate_settings
 import pytest
 
 # Импортируем модуль конфигурации
-from zbx_1c_py.config import settings  # noqa: F401
+from src.zbx_1c.core.config import settings  # noqa: F401
 
 # Добавляем путь к src
 src_path = Path(__file__).parent.parent / "src"
@@ -69,9 +69,9 @@ def test_script_help_option():
 def test_script_has_required_functions():
     """Тест проверяет, что скрипт содержит все необходимые функции."""
 
-    script_path = Path(__file__).parent.parent / "src" / "zbx_1c_py" / "utils" / "check_config.py"
+    script_path = Path(__file__).parent.parent / "src" / "zbx_1c" / "cli" / "zabbix_config.py"
 
-    spec = importlib.util.spec_from_file_location("check_config", script_path)
+    spec = importlib.util.spec_from_file_location("zabbix_config", script_path)
 
     # Добавляем проверку для линтера и безопасности теста
     if spec is None:
