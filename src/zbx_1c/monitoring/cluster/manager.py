@@ -20,12 +20,12 @@ from ...utils.converters import (
 def check_cluster_status(host: str, port: int, timeout: int = 5) -> str:
     """
     Проверка статуса кластера через подключение к рабочему серверу 1С
-    
+
     Args:
         host: Хост рабочего сервера
         port: Порт рабочего сервера
         timeout: Таймаут подключения
-        
+
     Returns:
         Статус кластера: "available", "unavailable" или "unknown"
     """
@@ -34,7 +34,7 @@ def check_cluster_status(host: str, port: int, timeout: int = 5) -> str:
         sock.settimeout(timeout)
         result = sock.connect_ex((host, port))
         sock.close()
-        
+
         if result == 0:
             return "available"
         else:
@@ -99,13 +99,15 @@ class ClusterManager:
                     "status": check_cluster_status(
                         data.get("host", self.settings.rac_host),
                         int(data.get("port", self.settings.rac_port)),
-                        timeout=self.settings.rac_timeout
+                        timeout=self.settings.rac_timeout,
                     ),
                 }
 
                 if cluster["id"]:
                     clusters.append(cluster)
-                    logger.debug(f"Найден кластер: {cluster['name']} ({cluster['id']}) [status: {cluster['status']}]")
+                    logger.debug(
+                        f"Найден кластер: {cluster['name']} ({cluster['id']}) [status: {cluster['status']}]"
+                    )
             except Exception as e:
                 logger.error(f"Ошибка парсинга кластера: {e}")
 
@@ -238,7 +240,7 @@ class ClusterManager:
 
         # Подсчет метрик
         total_sessions = len(sessions)
-        
+
         # Используем строгую проверку активности сессий
         # Критерии активности (все обязательные):
         # 1. hibernate == 'no' (не в спящем режиме)
@@ -246,11 +248,17 @@ class ClusterManager:
         # 3. calls-last-5min >= 1 (хотя бы 1 вызов за 5 мин)
         # 4. bytes-last-5min >= 1024 (хотя бы 1KB трафика за 5 мин)
         from ...monitoring.session.filters import is_session_active
-        
+
         active_sessions = sum(
-            1 for s in sessions if is_session_active(
-                s, threshold_minutes=5, check_activity=True, min_calls=1,
-                check_traffic=True, min_bytes=1024
+            1
+            for s in sessions
+            if is_session_active(
+                s,
+                threshold_minutes=5,
+                check_activity=True,
+                min_calls=1,
+                check_traffic=True,
+                min_bytes=1024,
             )
         )
 
@@ -259,6 +267,7 @@ class ClusterManager:
 
         # Получаем лимиты сессий на уровне Информационных Баз (max-connections)
         from ...monitoring.infobase.analyzer import get_total_infobase_session_limit
+
         session_limit = get_total_infobase_session_limit(cluster_id)
 
         # Рассчитываем процент заполнения (только если лимит установлен)

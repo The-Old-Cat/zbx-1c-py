@@ -15,12 +15,12 @@ from ...utils.converters import parse_clusters
 def check_cluster_status(host: str, port: int, timeout: int = 5) -> str:
     """
     Проверка статуса кластера через подключение к рабочему серверу 1С
-    
+
     Args:
         host: Хост рабочего сервера
         port: Порт рабочего сервера
         timeout: Таймаут подключения
-        
+
     Returns:
         Статус кластера: "available", "unavailable" или "unknown"
     """
@@ -29,7 +29,7 @@ def check_cluster_status(host: str, port: int, timeout: int = 5) -> str:
         sock.settimeout(timeout)
         result = sock.connect_ex((host, port))
         sock.close()
-        
+
         if result == 0:
             return "available"
         else:
@@ -77,15 +77,13 @@ def discover_clusters(settings: Settings) -> List[ClusterInfo]:
                 "host": data.get("host", settings.rac_host),
                 "port": int(data.get("port", 1541)),
             }
-            
+
             # Определяем статус кластера
             status = check_cluster_status(
-                cluster_dict["host"],
-                cluster_dict["port"],
-                timeout=settings.rac_timeout
+                cluster_dict["host"], cluster_dict["port"], timeout=settings.rac_timeout
             )
             cluster_dict["status"] = status
-            
+
             cluster = ClusterInfo.from_dict(cluster_dict)
             clusters.append(cluster)
             logger.debug(f"Found cluster: {cluster.name} ({cluster.id}) [status: {status}]")

@@ -25,7 +25,11 @@ def get_project_paths():
 
     return {
         "project_root": script_dir,
-        "venv_python": script_dir / ".venv" / "Scripts" / "python.exe" if platform.system().lower() == "windows" else script_dir / ".venv" / "bin" / "python"
+        "venv_python": (
+            script_dir / ".venv" / "Scripts" / "python.exe"
+            if platform.system().lower() == "windows"
+            else script_dir / ".venv" / "bin" / "python"
+        ),
     }
 
 
@@ -38,7 +42,7 @@ def find_python_in_path():
 def generate_windows_config(python_path, use_entry_points=True, project_root=None):
     """Генерация конфигурации для Windows."""
     # Используем cd /d для корректной кодировки (chcp 65001 не всегда работает)
-    config_content = f'''# ===========================================
+    config_content = f"""# ===========================================
 # UserParameter для мониторинга кластеров 1С
 # ===========================================
 # Mode: Python Module с полным путём
@@ -61,7 +65,7 @@ UserParameter=zbx1cpy.ras.check,cd /d "{project_root}" && "{python_path}" -m zbx
 
 # Тестовый параметр
 UserParameter=zbx1cpy.test,cd /d "{project_root}" && "{python_path}" -m zbx_1c test
-'''
+"""
     return config_content
 
 
@@ -69,7 +73,7 @@ def generate_linux_config(python_path, use_entry_points=True, project_root=None)
     """Генерация конфигурации для Linux."""
     # Прямой вызов через python -m с полным путём
     # Не используем переменные среды - Zabbix их не поддерживает
-    config_content = f'''# ===========================================
+    config_content = f"""# ===========================================
 # UserParameter для мониторинга кластеров 1С
 # ===========================================
 # Mode: Python Module с полным путём
@@ -92,7 +96,7 @@ UserParameter=zbx1cpy.ras.check,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_pat
 
 # Тестовый параметр
 UserParameter=zbx1cpy.test,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c test
-'''
+"""
     return config_content
 
 
@@ -106,25 +110,29 @@ def detect_zabbix_agent_version():
 
     if platform.system().lower() == "windows":
         # Типичные места установки Zabbix Agent на Windows
-        possible_locations.extend([
-            "C:/Program Files/Zabbix Agent/",
-            "C:/Program Files (x86)/Zabbix Agent/",
-            "C:/zabbix_agent/",
-            "C:/Program Files/Zabbix Agent 2/",
-            "C:/Program Files (x86)/Zabbix Agent 2/"
-        ])
+        possible_locations.extend(
+            [
+                "C:/Program Files/Zabbix Agent/",
+                "C:/Program Files (x86)/Zabbix Agent/",
+                "C:/zabbix_agent/",
+                "C:/Program Files/Zabbix Agent 2/",
+                "C:/Program Files (x86)/Zabbix Agent 2/",
+            ]
+        )
     else:
         # Типичные места установки Zabbix Agent на Linux
-        possible_locations.extend([
-            "/usr/sbin/zabbix_agent2",
-            "/usr/sbin/zabbix_agent",
-            "/usr/local/sbin/zabbix_agent2",
-            "/usr/local/sbin/zabbix_agent",
-            "/etc/zabbix/zabbix_agent2.conf",
-            "/etc/zabbix/zabbix_agent.conf",
-            "/etc/zabbix/zabbix_agent2.d/",
-            "/etc/zabbix/zabbix_agentd.d/"
-        ])
+        possible_locations.extend(
+            [
+                "/usr/sbin/zabbix_agent2",
+                "/usr/sbin/zabbix_agent",
+                "/usr/local/sbin/zabbix_agent2",
+                "/usr/local/sbin/zabbix_agent",
+                "/etc/zabbix/zabbix_agent2.conf",
+                "/etc/zabbix/zabbix_agent.conf",
+                "/etc/zabbix/zabbix_agent2.d/",
+                "/etc/zabbix/zabbix_agentd.d/",
+            ]
+        )
 
     # Проверяем наличие файлов
     for location in possible_locations:
@@ -139,7 +147,10 @@ def detect_zabbix_agent_version():
     # Попытка определить через командную строку
     try:
         import subprocess
-        result = subprocess.run(["zabbix_agent2", "--version"], capture_output=True, text=True, timeout=5)
+
+        result = subprocess.run(
+            ["zabbix_agent2", "--version"], capture_output=True, text=True, timeout=5
+        )
         if result.returncode == 0:
             return "agent2"
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -147,7 +158,10 @@ def detect_zabbix_agent_version():
 
     try:
         import subprocess
-        result = subprocess.run(["zabbix_agent", "--version"], capture_output=True, text=True, timeout=5)
+
+        result = subprocess.run(
+            ["zabbix_agent", "--version"], capture_output=True, text=True, timeout=5
+        )
         if result.returncode == 0:
             return "agent"
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -184,18 +198,14 @@ def generate_config(output_path=None, use_entry_points=True, force_os=None):
     # Генерация конфигурации в зависимости от ОС
     if os_type == "windows":
         config_content = generate_windows_config(
-            python_executable,
-            use_entry_points,
-            str(paths["project_root"])
+            python_executable, use_entry_points, str(paths["project_root"])
         )
         config_comment = f"# Для Windows (Zabbix Agent 2)"
         install_path = "C:\\Program Files\\Zabbix Agent 2\\zabbix_agent2.d\\"
         restart_cmd = "Restart-Service zabbix-agent2"
     else:
         config_content = generate_linux_config(
-            python_executable,
-            use_entry_points,
-            str(paths["project_root"])
+            python_executable, use_entry_points, str(paths["project_root"])
         )
         config_comment = f"# Для Linux (Zabbix Agent / Agent 2)"
         install_path = "/etc/zabbix/zabbix_agent2.d/"
@@ -249,7 +259,7 @@ def generate_config(output_path=None, use_entry_points=True, force_os=None):
             print(text)
         except UnicodeEncodeError:
             # Кодируем в ASCII с заменой невалидных символов
-            print(text.encode('ascii', errors='replace').decode('ascii'))
+            print(text.encode("ascii", errors="replace").decode("ascii"))
 
     safe_print(f"[OK] Конфигурационный файл успешно создан: {output_path}")
     safe_print(f"OS: {os_type.title()}")
@@ -282,20 +292,21 @@ if __name__ == "__main__":
   python scripts/generate_userparam_config.py --use-module
   python scripts/generate_userparam_config.py -o /etc/zabbix/zabbix_agent2.d/userparameter_1c.conf
   python scripts/generate_userparam_config.py --force-os linux
-        """
+        """,
     )
 
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         type=str,
         default=None,
-        help="Путь для сохранения конфигурации (по умолчанию: zabbix/userparameters/userparameter_1c.conf)"
+        help="Путь для сохранения конфигурации (по умолчанию: zabbix/userparameters/userparameter_1c.conf)",
     )
 
     parser.add_argument(
         "--use-module",
         action="store_true",
-        help="Использовать 'python -m zbx_1c' вместо entry points (не требует pip install -e .)"
+        help="Использовать 'python -m zbx_1c' вместо entry points (не требует pip install -e .)",
     )
 
     parser.add_argument(
@@ -303,13 +314,11 @@ if __name__ == "__main__":
         type=str,
         choices=["windows", "linux"],
         default=None,
-        help="Принудительно указать ОС (по умолчанию определяется автоматически)"
+        help="Принудительно указать ОС (по умолчанию определяется автоматически)",
     )
 
     args = parser.parse_args()
 
     generate_config(
-        output_path=args.output,
-        use_entry_points=not args.use_module,
-        force_os=args.force_os
+        output_path=args.output, use_entry_points=not args.use_module, force_os=args.force_os
     )

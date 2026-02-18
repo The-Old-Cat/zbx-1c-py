@@ -10,7 +10,7 @@ from typing import Dict, Any, List
 def get_console_encoding() -> str:
     """
     Получить кодировку консоли для текущей ОС.
-    
+
     Returns:
         str: Название кодировки
     """
@@ -25,10 +25,10 @@ def get_console_encoding() -> str:
 def encode_for_console(text: str) -> str:
     """
     Кодировать текст в кодировку консоли текущей ОС.
-    
+
     Args:
         text: Текст для кодирования (UTF-8)
-        
+
     Returns:
         str: Текст в кодировке консоли
     """
@@ -40,12 +40,12 @@ def encode_for_console(text: str) -> str:
         for char in text:
             try:
                 # Пробуем закодировать символ в CP866
-                char.encode('cp866')
+                char.encode("cp866")
                 result.append(char)
             except UnicodeEncodeError:
                 # Символ нет в CP866, оставляем как есть (это будет \uXXXX)
                 result.append(char)
-        return ''.join(result)
+        return "".join(result)
     return text
 
 
@@ -60,7 +60,7 @@ def decode_from_console(text_bytes: bytes) -> str:
         str: Декодированный текст в UTF-8
     """
     encoding = get_console_encoding()
-    return text_bytes.decode(encoding, errors='replace')
+    return text_bytes.decode(encoding, errors="replace")
 
 
 def decode_output(raw_data: bytes) -> str:

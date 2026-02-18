@@ -70,7 +70,6 @@ active_sessions = sum(1 for s in sessions if s.get("hibernate") == "no")
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 
-
 # ============================================================================
 # ОСНОВНЫЕ ФУНКЦИИ
 # ============================================================================
