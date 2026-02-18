@@ -29,7 +29,7 @@ zbx-1c-py/
 │   ├── cli/                     # Уровень CLI
 │   │   ├── __init__.py
 │   │   ├── commands.py          # Команды Click
-│   │   └── zabbix_config.py     # Проверка конфига Zabbix
+│   │   └── check_config.py      # Скрипт проверки конфигурации
 │   │
 │   ├── core/                    # Ядро приложения
 │   │   ├── __init__.py
