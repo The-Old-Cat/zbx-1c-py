@@ -41,7 +41,7 @@ zbx-1c-py/
 │   ├── cli/                     # CLI интерфейс
 │   │   ├── __init__.py
 │   │   ├── commands.py          # Команды CLI
-│   │   └── zabbix_config.py     # Проверка конфигурации Zabbix
+│   │   └── check_config.py      # Проверка конфигурации (скрипт)
 │   ├── core/                    # Ядро приложения
 │   │   ├── __init__.py
 │   │   ├── config.py            # Конфигурация (Settings)
