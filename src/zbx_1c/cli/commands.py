@@ -403,6 +403,7 @@ def get_metrics(
 
     except Exception as e:
         logger.error(f"Failed to get metrics: {e}")
+        click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
 
@@ -564,6 +565,90 @@ def test_connection(config: str):
 
     except Exception as e:
         logger.error(f"Test failed: {e}")
+        sys.exit(1)
+
+
+@cli.command("check-config")
+@click.option("--config", "-c", help="Path to config file", default=".env")
+def check_config_cmd(config: str):
+    """
+    Проверка корректности настройки конфигурации проекта
+    """
+    try:
+        settings = load_settings(config)
+
+        print("=" * 60)
+        print("РЕЗУЛЬТАТЫ ПРОВЕРКИ КОНФИГУРАЦИИ")
+        print("=" * 60)
+        print()
+
+        results = []
+        success_count = 0
+
+        # Проверка RAC_PATH
+        rac_path = str(settings.rac_path)
+        if not rac_path:
+            results.append(("RAC_PATH", False, "Путь к исполняемому файлу не задан"))
+        elif not os.path.exists(rac_path):
+            results.append(("RAC_PATH", False, f"Файл не найден: {rac_path}"))
+        else:
+            results.append(("RAC_PATH", True, f"Файл доступен: {rac_path}"))
+            success_count += 1
+
+        # Проверка LOG_PATH
+        log_path = settings.log_path or "./logs"
+        try:
+            Path = __import__("pathlib").Path
+            path_obj = Path(log_path)
+            path_obj.mkdir(parents=True, exist_ok=True)
+            test_file = path_obj / ".permission_test"
+            test_file.touch()
+            test_file.unlink()
+            results.append(("LOG_PATH", True, f"Директория для логов доступна: {log_path}"))
+            success_count += 1
+        except Exception as e:
+            results.append(("LOG_PATH", False, f"Ошибка: {e}"))
+
+        # Проверка RAC_HOST
+        if not settings.rac_host:
+            results.append(("RAC_HOST", False, "Хост RAS не задан"))
+        else:
+            results.append(("RAC_HOST", True, f"Хост RAS: {settings.rac_host}"))
+            success_count += 1
+
+        # Проверка RAC_PORT
+        if not settings.rac_port or settings.rac_port <= 0:
+            results.append(("RAC_PORT", False, "Порт RAS не задан или недействителен"))
+        else:
+            results.append(("RAC_PORT", True, f"Порт RAS: {settings.rac_port}"))
+            success_count += 1
+
+        # Проверка подключения к RAS
+        ras_ok = check_ras_availability(settings)
+        if ras_ok:
+            results.append(("RAS_CONNECTION", True, "Подключение к RAS успешно установлено"))
+            success_count += 1
+        else:
+            results.append(("RAS_CONNECTION", False, "Ошибка подключения к RAS"))
+
+        total_count = len(results)
+
+        for setting_name, is_valid, message in results:
+            status = "+" if is_valid else "-"
+            print(f"[{status}] {setting_name:<15} - {message}")
+
+        print("-" * 60)
+        print(f"Проверок пройдено: {success_count}/{total_count}")
+
+        if success_count == total_count:
+            print(":) Вся конфигурация корректна!")
+            sys.exit(0)
+        else:
+            print(":( Обнаружены проблемы с конфигурацией")
+            sys.exit(1)
+
+    except Exception as e:
+        logger.error(f"Check config failed: {e}")
         sys.exit(1)
 
 

@@ -50,9 +50,12 @@ UserParameter=zbx1cpy.metrics[*], "python.exe" -m zbx_1c metrics $1
 **Запуск:**
 ```bash
 # Рекомендуемый способ (через entry point)
-uv run check-config
+uv run zbx-1c-check-config
 
-# Альтернативный способ
+# Альтернативный способ (через CLI команду)
+uv run zbx-1c check-config
+
+# Прямой запуск скрипта
 python scripts/check_config.py
 ```
 

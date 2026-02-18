@@ -62,6 +62,7 @@ zbx-1c-infobases = "zbx_1c.cli.commands:get_infobases_cmd"
 zbx-1c-sessions = "zbx_1c.cli.commands:get_sessions_cmd"
 zbx-1c-jobs = "zbx_1c.cli.commands:get_jobs_cmd"
 zbx-1c-test = "zbx_1c.cli.commands:test_connection"
+zbx-1c-check-config = "zbx_1c.cli.commands:check_config_cmd"
 [project.urls]
 Homepage = "https://github.com/your-repo/zbx-1c"
 Repository = "https://github.com/your-repo/zbx-1c"
