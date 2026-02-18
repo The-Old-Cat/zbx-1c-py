@@ -4,7 +4,8 @@
 
 ## Доступные скрипты
 
-### generate_userparam_config.py
+### generate_userparam (CLI команда)
+
 Скрипт для автоматической генерации конфигурационного файла `userparameter_1c.conf` для Zabbix Agent.
 
 **Функциональность:**
@@ -15,48 +16,52 @@
 
 **Запуск:**
 ```bash
-# Генерация в директорию по умолчанию (zabbix/userparameter_1c.conf)
-python scripts/generate_userparam_config.py
+# Через entry point (после установки)
+zbx-1c-generate-userparam
 
-# Генерация в указанный файл
-python scripts/generate_userparam_config.py /path/to/userparameter.conf
+# С указанием выходного файла
+zbx-1c-generate-userparam -o /etc/zabbix/zabbix_agent2.d/userparameter_1c.conf
 
-# Использование установленных команд вместо python -m zbx_1c
-python scripts/generate_userparam_config.py --use-commands
+# Принудительно для Linux
+zbx-1c-generate-userparam --force-os linux
+
+# Через uv (для разработки)
+uv run zbx-1c-generate-userparam
 ```
 
 **Режимы работы:**
-- `entry_points` (по умолчанию): использует `python -m zbx_1c <command>`
-- `installed commands`: использует установленные команды `zbx-1c-discovery`, `zbx-1c-metrics` (требует `pip install -e .`)
+- По умолчанию использует `python -m zbx_1c <command>` с полным путём к Python
+- Генерирует конфигурацию для Windows или Linux автоматически
 
-**Пример генерируемой конфигурации:**
+**Пример генерируемой конфигурации (Windows):**
 ```conf
-UserParameter=zbx1cpy.clusters.discovery, "python.exe" -m zbx_1c discovery
-UserParameter=zbx1cpy.metrics[*], "python.exe" -m zbx_1c metrics $1
+UserParameter=zbx1cpy.clusters.discovery,cd /d "G:\Automation\zbx-1c-py" && "G:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c discovery
+UserParameter=zbx1cpy.cluster.status[*],cd /d "G:\Automation\zbx-1c-py" && "G:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c status $1
+UserParameter=zbx1cpy.metrics[*],cd /d "G:\Automation\zbx-1c-py" && "G:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c metrics $1
+```
+
+**Пример генерируемой конфигурации (Linux):**
+```conf
+UserParameter=zbx1cpy.clusters.discovery,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "/usr/bin/python3" -m zbx_1c discovery
+UserParameter=zbx1cpy.cluster.status[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "/usr/bin/python3" -m zbx_1c status $1
+UserParameter=zbx1cpy.metrics[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "/usr/bin/python3" -m zbx_1c metrics $1
 ```
 
 ---
 
-### check_config.py
-Скрипт для проверки корректности настройки конфигурации проекта zbx-1c-py.
+## Проверка конфигурации
 
-**Функциональность:**
-- Проверяет наличие и доступность исполняемого файла rac
-- Проверяет правильность настроек подключения к RAS
-- Проверяет доступность директории для логов
-- Проверяет правильность формата настроек
-- Тестирует подключение к RAS
+Для проверки конфигурации используйте CLI команду:
 
-**Запуск:**
 ```bash
-# Рекомендуемый способ (через entry point)
-uv run zbx-1c-check-config
+# Через entry point
+zbx-1c-check-config
 
-# Альтернативный способ (через CLI команду)
+# Через основную команду
+zbx-1c check-config
+
+# Через uv
 uv run zbx-1c check-config
-
-# Прямой запуск скрипта
-python scripts/check_config.py
 ```
 
 ---

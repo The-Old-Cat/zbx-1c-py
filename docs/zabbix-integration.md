@@ -67,7 +67,11 @@ DEBUG=False
 ### Шаг 3: Генерация UserParameter
 
 ```bash
-python scripts/generate_userparam_config.py
+# Через entry point (после установки)
+zbx-1c-generate-userparam
+
+# Или через uv (для разработки)
+uv run zbx-1c-generate-userparam
 ```
 
 Скрипт создаст файл `zabbix/userparameters/userparameter_1c.conf`.
