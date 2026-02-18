@@ -1,96 +1,176 @@
 zabbix_export:
-  version: '7.0'
+  version: "7.0"
   template_groups:
     - uuid: b91b8f978afa45ec90535a9467a60966
-      name: '1C Servers'
+      name: "1C Servers"
   templates:
     - uuid: 6217edce72c8467880e95f5fb18910b1
-      template: '1C Enterprise Monitoring'
-      name: '1C Enterprise Monitoring'
+      template: "1C Enterprise Monitoring"
+      name: "1C Enterprise Monitoring"
       groups:
-        - name: '1C Servers'
+        - name: "1C Servers"
       discovery_rules:
         - uuid: 1cd3db8d376344eaa6d42fe2f3eade5e
-          name: '1C Clusters Discovery'
+          name: "1C Clusters Discovery"
           key: zbx1cpy.clusters.discovery
           delay: 1h
           item_prototypes:
             - uuid: 3478367194024c5ca69fa36726249b8d
-              name: '1C: Active background jobs [{#CLUSTER.NAME}]'
+              name: "1C: Active background jobs [{#CLUSTER.NAME}]"
               type: DEPENDENT
-              key: 'zbx1cpy.cluster.active_bg_jobs[{#CLUSTER.ID}]'
-              delay: '0'
-              trends: '0'
-              description: 'Реально выполняющиеся задания'
+              key: "zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              description: "Реально выполняющиеся задания"
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.active_bg_jobs
+                    - $.active_jobs
               master_item:
-                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
                 - tag: App
                   value: 1С
+              trigger_prototypes:
+                - uuid: cfecf83689a2468580e6d8f9a0c5b8af
+                  expression: "last(/1C Enterprise Monitoring/zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}])>10"
+                  name: "1C: Active jobs[{#CLUSTER.ID}].last())>10"
+                  priority: AVERAGE
+                  description: "Зависшие задания"
             - uuid: 0c44fd000a6f480b9e63f88de8bf4546
-              name: '1C: Active sessions [{#CLUSTER.NAME}]'
+              name: "1C: Active sessions [{#CLUSTER.NAME}]"
               type: DEPENDENT
-              key: 'zbx1cpy.cluster.active_sessions[{#CLUSTER.ID}]'
-              delay: '0'
-              trends: '0'
-              description: 'Сессии с активностью за последние 5 мин'
+              key: "zbx1cpy.cluster.active_sessions[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              description: "Сессии с активностью за последние 5 мин"
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - $.active_sessions
               master_item:
-                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
                 - tag: App
                   value: 1С
-            - uuid: 1fdc9f086c874257a2db3a8490b62b8a
-              name: '1C: Cluster status [{#CLUSTER.NAME}]'
+            - uuid: 6702af8b38434851bbaaaa1e39735e10
+              name: "1C: Session limit [{#CLUSTER.NAME}]"
               type: DEPENDENT
-              key: 'zbx1cpy.cluster.status[{#CLUSTER.ID}]'
-              delay: '0'
-              trends: '0'
-              description: '1 — ОК, 0 — проблемы'
+              key: "zbx1cpy.cluster.session_limit[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              units: sessions
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.status
+                    - $.session_limit
               master_item:
-                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+              tags:
+                - tag: App
+                  value: 1С
+            - uuid: 0752df59ffd24dc89ece2a81dfec234f
+              name: "1C: Session usage percent [{#CLUSTER.NAME}]"
+              type: DEPENDENT
+              key: "zbx1cpy.cluster.session_percent[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              units: "%"
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.session_percent
+              master_item:
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
                 - tag: App
                   value: 1С
               trigger_prototypes:
-                - uuid: 9bfcff8dca104cc3858b9fe4c5dda072
-                  expression: 'last(/1C Enterprise Monitoring/zbx1cpy.cluster.status[{#CLUSTER.ID}])=0'
-                  name: '1C: Cluster status [{#CLUSTER_NAME}]'
-                  priority: HIGH
-            - uuid: 5707738fa1a6433ca7f4911edc3cff0f
-              name: '1C: Total sessions [{#CLUSTER.NAME}]'
+                - uuid: 17bf559686a54f5793c5f985649a02c6
+                  expression: "last(/1C Enterprise Monitoring/zbx1cpy.cluster.session_percent[{#CLUSTER.ID}])>90"
+                  name: "1C: Cluster {#CLUSTER.NAME} session usage > 90%"
+                  priority: AVERAGE
+            - uuid: 2cac5b5bb2e8478b8c9b3227993fcf3b
+              name: "1C: Cluster status [{#CLUSTER.NAME}]"
+              key: "zbx1cpy.cluster.status[{#CLUSTER.ID}]"
+              history: 7d
+              value_type: TEXT
+              trends: "0"
+              description: '"Статус кластера: available | unavailable | unknown"'
+              tags:
+                - tag: App
+                  value: 1С
+            - uuid: 8ae4c7e526f34e90b83f555ecbceb0a9
+              name: "1C: Cluster {#CLUSTER.NAME} total jobs"
               type: DEPENDENT
-              key: 'zbx1cpy.cluster.total_sessions[{#CLUSTER.ID}]'
-              delay: '0'
-              trends: '0'
-              description: 'Общее количество сессий в кластере'
+              key: "zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              description: "Реально выполняющиеся задания"
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.total_jobs
+              master_item:
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+              tags:
+                - tag: App
+                  value: 1С
+            - uuid: a30e42c438ec458cb6c71e24a66df52e
+              name: "1C: Total servers [{#CLUSTER.NAME}]"
+              type: DEPENDENT
+              key: "zbx1cpy.cluster.total_servers[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              units: servers
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.total_servers
+              master_item:
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+              tags:
+                - tag: App
+                  value: 1С
+            - uuid: 5707738fa1a6433ca7f4911edc3cff0f
+              name: "1C: Total sessions [{#CLUSTER.NAME}]"
+              type: DEPENDENT
+              key: "zbx1cpy.cluster.total_sessions[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              description: "Общее количество сессий в кластере"
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - $.total_sessions
               master_item:
-                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+              tags:
+                - tag: App
+                  value: 1С
+            - uuid: c2790f43509c4a67ae46a3882ba40c72
+              name: "1C: Working servers [{#CLUSTER.NAME}]"
+              type: DEPENDENT
+              key: "zbx1cpy.cluster.working_servers[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              units: servers
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.working_servers
+              master_item:
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
                 - tag: App
                   value: 1С
             - uuid: 08da3de1ef38415faa8d44d33b5e3f51
-              name: '1C: Cluster Metrics [{#CLUSTER.NAME}]'
-              key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
+              name: "1C: Cluster Metrics [{#CLUSTER.NAME}]"
+              key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               history: 7d
               value_type: LOG
-              trends: '0'
-              description: 'Сырые данные после обнаружения'
+              trends: "0"
+              description: "Сырые данные после обнаружения"
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -101,3 +181,83 @@ zabbix_export:
       tags:
         - tag: App
           value: 1C
+      dashboards:
+        - uuid: 72059c37f0284fde9443f6a2069c05fc
+          name: "1C Clusters"
+          pages:
+            - widgets:
+                - type: graphprototype
+                  width: "24"
+                  height: "6"
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: "1"
+                    - type: ITEM_PROTOTYPE
+                      name: itemid.0
+                      value:
+                        host: "1C Enterprise Monitoring"
+                        key: "zbx1cpy.cluster.active_sessions[{#CLUSTER.ID}]"
+                    - type: STRING
+                      name: reference
+                      value: QRVJA
+                    - type: INTEGER
+                      name: source_type
+                      value: "3"
+                - type: graphprototype
+                  "y": "6"
+                  width: "24"
+                  height: "6"
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: "1"
+                    - type: ITEM_PROTOTYPE
+                      name: itemid.0
+                      value:
+                        host: "1C Enterprise Monitoring"
+                        key: "zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]"
+                    - type: STRING
+                      name: reference
+                      value: XQUXN
+                    - type: INTEGER
+                      name: source_type
+                      value: "3"
+                - type: graphprototype
+                  x: "24"
+                  width: "24"
+                  height: "6"
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: "1"
+                    - type: ITEM_PROTOTYPE
+                      name: itemid.0
+                      value:
+                        host: "1C Enterprise Monitoring"
+                        key: "zbx1cpy.cluster.total_sessions[{#CLUSTER.ID}]"
+                    - type: STRING
+                      name: reference
+                      value: JFIAW
+                    - type: INTEGER
+                      name: source_type
+                      value: "3"
+                - type: graphprototype
+                  x: "48"
+                  width: "24"
+                  height: "6"
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: "1"
+                    - type: ITEM_PROTOTYPE
+                      name: itemid.0
+                      value:
+                        host: "1C Enterprise Monitoring"
+                        key: "zbx1cpy.cluster.session_percent[{#CLUSTER.ID}]"
+                    - type: STRING
+                      name: reference
+                      value: VDCHP
+                    - type: INTEGER
+                      name: source_type
+                      value: "3"

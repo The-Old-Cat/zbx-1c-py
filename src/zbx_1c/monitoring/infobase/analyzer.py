@@ -179,6 +179,64 @@ def analyze_infobase_load(
     }
 
 
+def get_infobase_session_limits(cluster_id: str, ras_address: Optional[str] = None) -> Dict[str, int]:
+    """
+    Получение лимитов сессий (max-connections) для всех информационных баз кластера
+    Лимит max-connections устанавливается на уровне Информационной Базы в консоли администрирования
+
+    Args:
+        cluster_id (str): Идентификатор кластера 1С
+        ras_address (Optional[str]): Адрес RAS-сервера в формате host:port.
+                                   Если не указан, используется адрес из настроек.
+
+    Returns:
+        Dict[str, int]: Словарь {infobase_id: max_connections}
+                       max_connections = 0 означает отсутствие лимита (без ограничений)
+    """
+    if ras_address is None:
+        ras_address = f"{settings.rac_host}:{settings.rac_port}"
+
+    infobases = get_all_infobases(cluster_id, ras_address)
+    limits = {}
+
+    for infobase in infobases:
+        infobase_id = infobase.get("infobase") or infobase.get("id")
+        if not infobase_id:
+            continue
+
+        # Лимит сессий для ИБ - это поле max-connections
+        # 0 = без ограничений
+        limit = int(infobase.get("max-connections", 0) or 0)
+        limits[infobase_id] = limit
+        logger.debug(
+            f"Infobase {infobase.get('name', infobase_id)} max-connections: {limit}"
+        )
+
+    return limits
+
+
+def get_total_infobase_session_limit(
+    cluster_id: str, ras_address: Optional[str] = None
+) -> int:
+    """
+    Получение общего лимита сессий для кластера (сумма лимитов всех ИБ)
+    Лимит max-connections устанавливается на уровне Информационной Базы
+
+    Args:
+        cluster_id (str): Идентификатор кластера 1С
+        ras_address (Optional[str]): Адрес RAS-сервера в формате host:port.
+                                   Если не указан, используется адрес из настроек.
+
+    Returns:
+        int: Общий лимит сессий (0 если не установлен ни для одной ИБ)
+    """
+    limits = get_infobase_session_limits(cluster_id, ras_address)
+    total = sum(limits.values())
+
+    logger.debug(f"Total infobase session limit for cluster {cluster_id}: {total}")
+    return total
+
+
 def get_infobase_recommendations(load_metrics: Dict[str, Any]) -> List[str]:
     """
     Формирует рекомендации по оптимизации на основе метрик нагрузки информационной базы.

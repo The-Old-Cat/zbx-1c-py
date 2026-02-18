@@ -4,12 +4,13 @@ CLI команды для интеграции с Zabbix
 Работает точно так же как run_direct.py
 """
 
+import os
 import sys
 import json
-import click
+import socket
 from typing import Optional, List, Dict
 from datetime import datetime
-import socket
+import click
 from loguru import logger
 
 from ..core.config import Settings
@@ -374,60 +375,19 @@ def get_metrics(
     try:
         settings = load_settings(config)
 
+        # Используем ClusterManager для получения метрик с новыми полями
+        from ..monitoring.cluster.manager import ClusterManager
+        manager = ClusterManager(settings)
+
         if cluster_id:
             cluster_id = cluster_id.strip("[]\"'")
-            # Получаем информацию о кластере
-            clusters = discover_clusters(settings)
-            cluster = None
-            for c in clusters:
-                if c["id"] == cluster_id:
-                    cluster = c
-                    break
+            metrics = manager.get_cluster_metrics(cluster_id)
 
-            if not cluster:
+            if not metrics:
                 safe_output({"error": f"Cluster {cluster_id} not found"})
                 sys.exit(1)
 
-            # Получаем сессии и задания
-            sessions = get_sessions(settings, cluster_id)
-            jobs = get_jobs(settings, cluster_id)
-
-            # Подсчет метрик
-            # total_sessions — общее количество сессий
-            total_sessions = len(sessions)
-            
-            # active_sessions — сессии, которые не в hibernate И имеют активность
-            # Используем строгую фильтрацию: hibernate=no + calls >= 1
-            from ..monitoring.session.filters import is_session_active
-            active_sessions = sum(
-                1 for s in sessions if is_session_active(
-                    s,
-                    check_activity=True,      # Проверять вызовы
-                    check_traffic=False,      # Не проверять трафик
-                    min_calls=1,              # Минимум 1 вызов за 5 минут
-                    min_bytes=0               # Без ограничений по трафику
-                )
-            )
-
-            # total_jobs — общее количество заданий
-            total_jobs = len(jobs)
-            # active_bg_jobs — задания со статусом "running"
-            active_jobs = sum(1 for j in jobs if j.get("status") == "running")
-
-            result = {
-                "cluster": {
-                    "id": cluster["id"],
-                    "name": cluster["name"],
-                },
-                "metrics": {
-                    "total_sessions": total_sessions,
-                    "active_sessions": active_sessions,
-                    "total_jobs": total_jobs,
-                    "active_bg_jobs": active_jobs,
-                },
-            }
-
-            safe_output(result, indent=2, default=str)
+            safe_output(metrics, indent=2, default=str)
         else:
             # Метрики для всех кластеров
             clusters = discover_clusters(settings)
@@ -435,44 +395,9 @@ def get_metrics(
 
             for cluster in clusters:
                 cid = cluster["id"]
-                sessions = get_sessions(settings, cid)
-                jobs = get_jobs(settings, cid)
-
-                # total_sessions — общее количество сессий
-                total_sessions = len(sessions)
-
-                # active_sessions — сессии, которые не в hibernate И имеют активность
-                # Используем строгую фильтрацию: hibernate=no + calls >= 1
-                from ..monitoring.session.filters import is_session_active
-                active_sessions = sum(
-                    1 for s in sessions if is_session_active(
-                        s,
-                        check_activity=True,      # Проверять вызовы
-                        check_traffic=False,      # Не проверять трафик
-                        min_calls=1,              # Минимум 1 вызов за 5 минут
-                        min_bytes=0               # Без ограничений по трафику
-                    )
-                )
-
-                # total_jobs — общее количество заданий
-                total_jobs = len(jobs)
-                # active_bg_jobs — задания со статусом "running"
-                active_jobs = sum(1 for j in jobs if j.get("status") == "running")
-
-                results.append(
-                    {
-                        "cluster": {
-                            "id": cid,
-                            "name": cluster["name"],
-                        },
-                        "metrics": {
-                            "total_sessions": total_sessions,
-                            "active_sessions": active_sessions,
-                            "total_jobs": total_jobs,
-                            "active_bg_jobs": active_jobs,
-                        },
-                    }
-                )
+                metrics = manager.get_cluster_metrics(cid)
+                if metrics:
+                    results.append(metrics)
 
             safe_output(results, indent=2, default=str)
 
@@ -504,6 +429,16 @@ def get_all(cluster_id: str, config: str):
         infobases = get_infobases(settings, cluster_id)
         sessions = get_sessions(settings, cluster_id)
         jobs = get_jobs(settings, cluster_id)
+        
+        # Используем строгую проверку активности (все критерии)
+        from ..monitoring.session.filters import is_session_active
+        
+        active_sessions = sum(
+            1 for s in sessions if is_session_active(
+                s, threshold_minutes=5, check_activity=True, min_calls=1,
+                check_traffic=True, min_bytes=1024
+            )
+        )
 
         result = {
             "cluster": {
@@ -519,9 +454,7 @@ def get_all(cluster_id: str, config: str):
             "statistics": {
                 "total_infobases": len(infobases),
                 "total_sessions": len(sessions),
-                "active_sessions": sum(
-                    1 for s in sessions if s.get("hibernate") == "no"
-                ),
+                "active_sessions": active_sessions,
                 "total_jobs": len(jobs),
                 "active_jobs": sum(1 for j in jobs if j.get("status") == "running"),
             },
@@ -581,7 +514,7 @@ def test_connection(config: str):
 
         # Проверка наличия rac
         safe_print(f"📁 RAC path: {settings.rac_path}")
-        if settings.rac_path.exists():  # type: ignore[attr-defined]
+        if os.path.exists(str(settings.rac_path)):
             safe_print("   ✅ RAC executable found")
         else:
             safe_print("   ❌ RAC executable not found")
@@ -605,17 +538,23 @@ def test_connection(config: str):
             try:
                 sessions = get_sessions(settings, cluster["id"])
                 jobs = get_jobs(settings, cluster["id"])
-
+                
+                # Используем строгую проверку активности (все критерии)
+                from ..monitoring.session.filters import is_session_active
+                
                 total_sessions = len(sessions)
                 active_sessions = sum(
-                    1 for s in sessions if s.get("session-id") and s.get("hibernate") == "no"
+                    1 for s in sessions if is_session_active(
+                        s, threshold_minutes=5, check_activity=True, min_calls=1,
+                        check_traffic=True, min_bytes=1024
+                    )
                 )
                 total_jobs = len(jobs)
 
                 safe_print(
                     f"     ✅ Metrics collected: "
                     f"{total_sessions} sessions, "
-                    f"{active_sessions} active, "
+                    f"{active_sessions} active (strict), "
                     f"{total_jobs} jobs"
                 )
             except Exception as e:
