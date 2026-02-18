@@ -95,7 +95,7 @@ def check_ras_availability(settings: Settings) -> bool:
 def discover_clusters(settings: Settings) -> List[Dict]:
     """Обнаружение кластеров"""
     import socket
-    
+
     def check_status(host: str, port: int) -> str:
         """Проверка статуса кластера"""
         try:
@@ -106,7 +106,7 @@ def discover_clusters(settings: Settings) -> List[Dict]:
             return "available" if result == 0 else "unavailable"
         except Exception:
             return "unknown"
-    
+
     cmd_parts = [
         str(settings.rac_path),
         "cluster",
@@ -359,7 +359,7 @@ def get_metrics(
     check_activity: bool,
     check_traffic: bool,
     min_calls: int,
-    min_bytes: int
+    min_bytes: int,
 ):
     """
     Получение метрик кластера (для Zabbix)
@@ -377,6 +377,7 @@ def get_metrics(
 
         # Используем ClusterManager для получения метрик с новыми полями
         from ..monitoring.cluster.manager import ClusterManager
+
         manager = ClusterManager(settings)
 
         if cluster_id:
@@ -430,14 +431,20 @@ def get_all(cluster_id: str, config: str):
         infobases = get_infobases(settings, cluster_id)
         sessions = get_sessions(settings, cluster_id)
         jobs = get_jobs(settings, cluster_id)
-        
+
         # Используем строгую проверку активности (все критерии)
         from ..monitoring.session.filters import is_session_active
-        
+
         active_sessions = sum(
-            1 for s in sessions if is_session_active(
-                s, threshold_minutes=5, check_activity=True, min_calls=1,
-                check_traffic=True, min_bytes=1024
+            1
+            for s in sessions
+            if is_session_active(
+                s,
+                threshold_minutes=5,
+                check_activity=True,
+                min_calls=1,
+                check_traffic=True,
+                min_bytes=1024,
             )
         )
 
@@ -539,15 +546,21 @@ def test_connection(config: str):
             try:
                 sessions = get_sessions(settings, cluster["id"])
                 jobs = get_jobs(settings, cluster["id"])
-                
+
                 # Используем строгую проверку активности (все критерии)
                 from ..monitoring.session.filters import is_session_active
-                
+
                 total_sessions = len(sessions)
                 active_sessions = sum(
-                    1 for s in sessions if is_session_active(
-                        s, threshold_minutes=5, check_activity=True, min_calls=1,
-                        check_traffic=True, min_bytes=1024
+                    1
+                    for s in sessions
+                    if is_session_active(
+                        s,
+                        threshold_minutes=5,
+                        check_activity=True,
+                        min_calls=1,
+                        check_traffic=True,
+                        min_bytes=1024,
                     )
                 )
                 total_jobs = len(jobs)

@@ -67,14 +67,18 @@ def get_all_infobases(cluster_id: str, ras_address: Optional[str] = None) -> Lis
         result = subprocess.run(command, capture_output=True, check=False, timeout=15)
 
         if result.returncode == 0:
-            decoded_text = result.stdout.decode("cp866" if os.name == "nt" else "utf-8", errors="replace")
+            decoded_text = result.stdout.decode(
+                "cp866" if os.name == "nt" else "utf-8", errors="replace"
+            )
             infobases = parse_rac_output(decoded_text)
             # Добавляем информацию о RAS-сервере к каждой базе
             for infobase in infobases:
                 infobase["ras_address"] = ras_address
             return infobases
 
-        stderr_text = result.stderr.decode("cp866" if os.name == "nt" else "utf-8", errors="replace")
+        stderr_text = result.stderr.decode(
+            "cp866" if os.name == "nt" else "utf-8", errors="replace"
+        )
         logger.error(
             f"RAC ошибка получения infobases (код {result.returncode}) для {ras_address}: {stderr_text}"
         )
@@ -130,7 +134,7 @@ def analyze_infobase_load(
     # Конвертируем в dict если нужно
     all_sessions: List[Dict[str, Any]] = []
     for s in all_sessions_raw:
-        if hasattr(s, 'model_dump'):
+        if hasattr(s, "model_dump"):
             all_sessions.append(s.model_dump())  # type: ignore
         else:
             all_sessions.append(s)  # type: ignore
@@ -179,7 +183,9 @@ def analyze_infobase_load(
     }
 
 
-def get_infobase_session_limits(cluster_id: str, ras_address: Optional[str] = None) -> Dict[str, int]:
+def get_infobase_session_limits(
+    cluster_id: str, ras_address: Optional[str] = None
+) -> Dict[str, int]:
     """
     Получение лимитов сессий (max-connections) для всех информационных баз кластера
     Лимит max-connections устанавливается на уровне Информационной Базы в консоли администрирования
@@ -208,16 +214,12 @@ def get_infobase_session_limits(cluster_id: str, ras_address: Optional[str] = No
         # 0 = без ограничений
         limit = int(infobase.get("max-connections", 0) or 0)
         limits[infobase_id] = limit
-        logger.debug(
-            f"Infobase {infobase.get('name', infobase_id)} max-connections: {limit}"
-        )
+        logger.debug(f"Infobase {infobase.get('name', infobase_id)} max-connections: {limit}")
 
     return limits
 
 
-def get_total_infobase_session_limit(
-    cluster_id: str, ras_address: Optional[str] = None
-) -> int:
+def get_total_infobase_session_limit(cluster_id: str, ras_address: Optional[str] = None) -> int:
     """
     Получение общего лимита сессий для кластера (сумма лимитов всех ИБ)
     Лимит max-connections устанавливается на уровне Информационной Базы
@@ -287,5 +289,3 @@ def get_infobase_recommendations(load_metrics: Dict[str, Any]) -> List[str]:
         recommendations.append("ИНФОРМАЦИЯ: Нагрузка в пределах нормы")
 
     return recommendations
-
-

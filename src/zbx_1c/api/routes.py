@@ -20,13 +20,23 @@ async def get_clusters_discovery():
         clusters = manager.discover_clusters()
 
         # Форматируем для LLD с использованием to_lld()
-        lld_data = {"data": [c.to_lld() if hasattr(c, 'to_lld') else {
-            "{#CLUSTER.ID}": c.get("id", ""),
-            "{#CLUSTER.NAME}": c.get("name", "unknown"),
-            "{#CLUSTER.HOST}": c.get("host", ""),
-            "{#CLUSTER.PORT}": c.get("port", ""),
-            "{#CLUSTER.STATUS}": c.get("status", "unknown"),
-        } for c in clusters if c.get("id") or hasattr(c, 'id')]}
+        lld_data = {
+            "data": [
+                (
+                    c.to_lld()
+                    if hasattr(c, "to_lld")
+                    else {
+                        "{#CLUSTER.ID}": c.get("id", ""),
+                        "{#CLUSTER.NAME}": c.get("name", "unknown"),
+                        "{#CLUSTER.HOST}": c.get("host", ""),
+                        "{#CLUSTER.PORT}": c.get("port", ""),
+                        "{#CLUSTER.STATUS}": c.get("status", "unknown"),
+                    }
+                )
+                for c in clusters
+                if c.get("id") or hasattr(c, "id")
+            ]
+        }
 
         return lld_data
     except Exception as e:
@@ -101,6 +111,7 @@ async def get_ras_status():
     try:
         settings = get_settings()
         import socket
+
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(settings.rac_timeout)
         result = sock.connect_ex((settings.rac_host, settings.rac_port))

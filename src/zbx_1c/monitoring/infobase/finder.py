@@ -35,6 +35,7 @@ def get_all_infobases_from_config(ras_address: Optional[str] = None) -> List[Dic
 
     # Получаем список кластеров
     from zbx_1c.monitoring.cluster.manager import ClusterManager
+
     manager = ClusterManager(settings)
     clusters = manager.discover_clusters()
     cluster_ids = [str(c.get("id", "")) for c in clusters]
@@ -81,7 +82,9 @@ def get_infobases_for_cluster(
         result = subprocess.run(command, capture_output=True, check=False, timeout=15)
 
         if result.returncode == 0:
-            decoded_text = result.stdout.decode("cp866" if os.name == "nt" else "utf-8", errors="replace")
+            decoded_text = result.stdout.decode(
+                "cp866" if os.name == "nt" else "utf-8", errors="replace"
+            )
             infobases = parse_rac_output(decoded_text)
             # Добавляем информацию о кластере и RAS-сервере к каждой базе
             for infobase in infobases:
@@ -89,7 +92,9 @@ def get_infobases_for_cluster(
                 infobase["ras_address"] = ras_address
             return infobases
 
-        stderr_text = result.stderr.decode("cp866" if os.name == "nt" else "utf-8", errors="replace")
+        stderr_text = result.stderr.decode(
+            "cp866" if os.name == "nt" else "utf-8", errors="replace"
+        )
         logger.error(
             f"RAC ошибка получения infobases (код {result.returncode}) для {ras_address}, кластер {cluster_id}: {stderr_text}"
         )
@@ -203,7 +208,9 @@ def get_infobase_details(
         result = subprocess.run(command, capture_output=True, check=False, timeout=15)
 
         if result.returncode == 0:
-            decoded_text = result.stdout.decode("cp866" if os.name == "nt" else "utf-8", errors="replace")
+            decoded_text = result.stdout.decode(
+                "cp866" if os.name == "nt" else "utf-8", errors="replace"
+            )
             infobases = parse_rac_output(decoded_text)
 
             # Находим нужную информационную базу
@@ -216,7 +223,9 @@ def get_infobase_details(
             logger.warning(f"Информационная база {infobase_id} не найдена в кластере {cluster_id}")
             return None
 
-        stderr_text = result.stderr.decode("cp866" if os.name == "nt" else "utf-8", errors="replace")
+        stderr_text = result.stderr.decode(
+            "cp866" if os.name == "nt" else "utf-8", errors="replace"
+        )
         logger.error(
             f"RAC ошибка получения деталей infobase (код {result.returncode}) для {ras_address}, кластер {cluster_id}: {stderr_text}"
         )
@@ -300,7 +309,9 @@ def get_infobase_sessions(
         result = subprocess.run(command, capture_output=True, check=False, timeout=15)
 
         if result.returncode == 0:
-            decoded_text = result.stdout.decode("cp866" if os.name == "nt" else "utf-8", errors="replace")
+            decoded_text = result.stdout.decode(
+                "cp866" if os.name == "nt" else "utf-8", errors="replace"
+            )
             all_sessions = parse_rac_output(decoded_text)
 
             # Фильтруем сессии для конкретной информационной базы
@@ -310,7 +321,9 @@ def get_infobase_sessions(
 
             return infobase_sessions
 
-        stderr_text = result.stderr.decode("cp866" if os.name == "nt" else "utf-8", errors="replace")
+        stderr_text = result.stderr.decode(
+            "cp866" if os.name == "nt" else "utf-8", errors="replace"
+        )
         logger.error(
             f"RAC ошибка получения сессий (код {result.returncode}) для {ras_address}, кластер {cluster_id}: {stderr_text}"
         )
@@ -468,8 +481,8 @@ if __name__ == "__main__":
             print(
                 f"{idx}. {name} (ID: {infobase_id}, Кластер: {cluster_id}, Подключений: {connections})"
             )
-        
-        print("\n" + "-"*50)
+
+        print("\n" + "-" * 50)
         print("Вывод только имен (без ID):")
         # Вариант вывода только с именами (новый)
         for idx, ib in enumerate(all_infobases, 1):
@@ -501,6 +514,7 @@ if __name__ == "__main__":
         # Попробуем получить список кластеров
         print("\nПроверка доступных кластеров...")
         from zbx_1c.monitoring.cluster.manager import ClusterManager
+
         manager = ClusterManager(settings)
         clusters = manager.discover_clusters()
         if clusters:
@@ -587,7 +601,7 @@ def print_infobases_names_only(ras_address: Optional[str] = None) -> None:
                                    Если не указан, используется адрес из настроек.
     """
     infobases_names = get_all_infobases_names_only(ras_address)
-    
+
     print("Список информационных баз (только имена):")
     for i, name in enumerate(infobases_names, 1):
         print(f"{i}. {name}")
@@ -606,42 +620,42 @@ def print_simple_infobases_list(ras_address: Optional[str] = None) -> None:
         ras_address = f"{settings.rac_host}:{settings.rac_port}"
 
     all_infobases = get_all_infobases_from_config(ras_address)
-    
+
     print("Список информационных баз (только имена):")
     for i, ib in enumerate(all_infobases, 1):
-        name = ib.get('name', 'N/A')
+        name = ib.get("name", "N/A")
         print(f"{i}. {name}")
 
 
 def generate_zabbix_userparameters() -> str:
     """
     Генерирует кроссплатформенные UserParameter для Zabbix агента.
-    
+
     Returns:
         str: Строка с UserParameter для Zabbix агента
     """
     import platform
     import sys
     from pathlib import Path
-    
+
     # Определяем путь к интерпретатору Python
     python_executable = sys.executable
-    
+
     # Определяем путь к проекту
     project_root = Path(__file__).parent.parent.parent.resolve()
     main_script_path = project_root / "src" / "api" / "main.py"
-    
+
     # Определяем правильный формат пути в зависимости от ОС для Zabbix
     os_name = platform.system().lower()
     if os_name == "windows":
         # Для Windows в Zabbix конфигурации нужно удваивать обратные слэши
-        python_path = str(Path(python_executable)).replace('\\', '\\\\')
-        script_path = str(Path(main_script_path)).replace('\\', '\\\\')
+        python_path = str(Path(python_executable)).replace("\\", "\\\\")
+        script_path = str(Path(main_script_path)).replace("\\", "\\\\")
     else:
         # Для Unix-подобных систем используем обычные пути
         python_path = str(Path(python_executable))
         script_path = str(Path(main_script_path))
-    
+
     # Генерируем UserParameter
     userparams = f"""# Discovery: без параметров
 UserParameter=zbx1cpy.clusters.discovery, "{python_path}" "{script_path}" --discovery

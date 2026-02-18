@@ -22,7 +22,7 @@ class RACClient:
         # Порядок кодировок важен: 1С на Windows использует CP866 (OEM),
         # затем пробуем CP1251 (Windows) и UTF-8 для новых версий
         self.encodings = ["cp866", "cp1251", "utf-8"]
-        self.timeout = getattr(settings, 'command_timeout', 30) if settings else 30
+        self.timeout = getattr(settings, "command_timeout", 30) if settings else 30
 
     def execute(self, cmd_parts: List[str], mask_password: bool = True) -> Optional[Dict[str, Any]]:
         """
@@ -37,13 +37,14 @@ class RACClient:
         """
         try:
             # Маскируем пароль в логах
-            log_cmd = ' '.join(cmd_parts)
+            log_cmd = " ".join(cmd_parts)
             if mask_password:
-                log_cmd = log_cmd.replace(
-                    f"--cluster-pwd={self.settings.user_pass}",
-                    "--cluster-pwd=***"
-                ) if self.settings and self.settings.user_pass else log_cmd
-            
+                log_cmd = (
+                    log_cmd.replace(f"--cluster-pwd={self.settings.user_pass}", "--cluster-pwd=***")
+                    if self.settings and self.settings.user_pass
+                    else log_cmd
+                )
+
             logger.debug(f"Executing: {log_cmd}")
 
             result = subprocess.run(cmd_parts, capture_output=True, timeout=self.timeout)
@@ -55,11 +56,7 @@ class RACClient:
                     error_mode = "strict" if i == 0 else "replace"
                     stdout = result.stdout.decode(enc, errors=error_mode)
                     stderr = result.stderr.decode(enc, errors=error_mode)
-                    return {
-                        "returncode": result.returncode,
-                        "stdout": stdout,
-                        "stderr": stderr
-                    }
+                    return {"returncode": result.returncode, "stdout": stdout, "stderr": stderr}
                 except Exception:
                     continue
 
@@ -74,7 +71,9 @@ class RACClient:
             logger.error(f"Ошибка выполнения: {e}")
             return None
 
-    def execute_with_auth(self, command: str, subcommand: str, cluster_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def execute_with_auth(
+        self, command: str, subcommand: str, cluster_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """
         Выполнение команды с авторизацией
 
@@ -89,7 +88,7 @@ class RACClient:
         if not self.settings:
             logger.error("Settings not provided")
             return None
-            
+
         cmd_parts = [
             str(self.settings.rac_path),
             command,

@@ -41,7 +41,7 @@ class Settings(BaseSettings):
         env_file=get_project_root() / ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
-        extra="ignore"
+        extra="ignore",
     )
 
     @field_validator("rac_path", mode="before")
