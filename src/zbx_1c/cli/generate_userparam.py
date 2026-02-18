@@ -11,7 +11,10 @@
 import sys
 import platform
 import shutil
+import argparse
+import datetime
 from pathlib import Path
+from typing import Optional
 
 
 def get_python_executable():
@@ -21,7 +24,8 @@ def get_python_executable():
 
 def get_project_paths():
     """Получить пути к проекту и скриптам."""
-    script_dir = Path(__file__).parent.parent
+    # Для установленного пакета используем текущую директорию
+    script_dir = Path(__file__).parent.parent.parent.parent
 
     return {
         "project_root": script_dir,
@@ -39,10 +43,9 @@ def find_python_in_path():
     return shutil.which(python_cmd) or shutil.which("python")
 
 
-def generate_windows_config(python_path, use_entry_points=True, project_root=None):
+def generate_windows_config(python_path: str, project_root: str) -> str:
     """Генерация конфигурации для Windows."""
-    # Используем cd /d для корректной кодировки (chcp 65001 не всегда работает)
-    config_content = f"""# ===========================================
+    return f"""# ===========================================
 # UserParameter для мониторинга кластеров 1С
 # ===========================================
 # Mode: Python Module с полным путём
@@ -66,14 +69,11 @@ UserParameter=zbx1cpy.ras.check,cd /d "{project_root}" && "{python_path}" -m zbx
 # Тестовый параметр
 UserParameter=zbx1cpy.test,cd /d "{project_root}" && "{python_path}" -m zbx_1c test
 """
-    return config_content
 
 
-def generate_linux_config(python_path, use_entry_points=True, project_root=None):
+def generate_linux_config(python_path: str) -> str:
     """Генерация конфигурации для Linux."""
-    # Прямой вызов через python -m с полным путём
-    # Не используем переменные среды - Zabbix их не поддерживает
-    config_content = f"""# ===========================================
+    return f"""# ===========================================
 # UserParameter для мониторинга кластеров 1С
 # ===========================================
 # Mode: Python Module с полным путём
@@ -97,19 +97,16 @@ UserParameter=zbx1cpy.ras.check,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_pat
 # Тестовый параметр
 UserParameter=zbx1cpy.test,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c test
 """
-    return config_content
 
 
-def detect_zabbix_agent_version():
+def detect_zabbix_agent_version() -> str:
     """
     Попытка определить версию Zabbix Agent.
     Возвращает 'agent2' если обнаружена вторая версия, 'agent' для первой версии или 'unknown'.
     """
-    # Попытка определить по наличию типичных файлов конфигурации или бинарников
     possible_locations = []
 
     if platform.system().lower() == "windows":
-        # Типичные места установки Zabbix Agent на Windows
         possible_locations.extend(
             [
                 "C:/Program Files/Zabbix Agent/",
@@ -120,7 +117,6 @@ def detect_zabbix_agent_version():
             ]
         )
     else:
-        # Типичные места установки Zabbix Agent на Linux
         possible_locations.extend(
             [
                 "/usr/sbin/zabbix_agent2",
@@ -134,7 +130,6 @@ def detect_zabbix_agent_version():
             ]
         )
 
-    # Проверяем наличие файлов
     for location in possible_locations:
         path = Path(location)
         if path.exists():
@@ -144,10 +139,7 @@ def detect_zabbix_agent_version():
             elif "agent" in location_lower:
                 return "agent"
 
-    # Попытка определить через командную строку
     try:
-        import subprocess
-
         result = subprocess.run(
             ["zabbix_agent2", "--version"], capture_output=True, text=True, timeout=5
         )
@@ -157,8 +149,6 @@ def detect_zabbix_agent_version():
         pass
 
     try:
-        import subprocess
-
         result = subprocess.run(
             ["zabbix_agent", "--version"], capture_output=True, text=True, timeout=5
         )
@@ -170,14 +160,27 @@ def detect_zabbix_agent_version():
     return "unknown"
 
 
-def generate_config(output_path=None, use_entry_points=True, force_os=None):
+def safe_print(text: str):
+    """Безопасный print для Windows консоли"""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        print(text.encode("ascii", errors="replace").decode("ascii"))
+
+
+def generate_config(
+    output_path: Optional[Path] = None,
+    force_os: Optional[str] = None,
+) -> Path:
     """
     Основная функция генерации конфигурации.
 
     Args:
-        output_path: Путь для сохранения конфигурации (по умолчанию: zabbix/userparameters/)
-        use_entry_points: Использовать entry points (True) или python -m (False)
-        force_os: Принудительно указать ОС ('windows' или 'linux'), по умолчанию определяется автоматически
+        output_path: Путь для сохранения конфигурации
+        force_os: Принудительно указать ОС ('windows' или 'linux')
+
+    Returns:
+        Путь к созданному файлу конфигурации
     """
     os_type = force_os if force_os else platform.system().lower()
     paths = get_project_paths()
@@ -190,7 +193,6 @@ def generate_config(output_path=None, use_entry_points=True, force_os=None):
     if venv_python.exists():
         python_executable = str(venv_python.absolute())
     else:
-        # Пытаемся найти python в PATH
         python_in_path = find_python_in_path()
         if python_in_path:
             python_executable = python_in_path
@@ -198,16 +200,12 @@ def generate_config(output_path=None, use_entry_points=True, force_os=None):
     # Генерация конфигурации в зависимости от ОС
     if os_type == "windows":
         config_content = generate_windows_config(
-            python_executable, use_entry_points, str(paths["project_root"])
+            python_executable, str(paths["project_root"])
         )
-        config_comment = f"# Для Windows (Zabbix Agent 2)"
         install_path = "C:\\Program Files\\Zabbix Agent 2\\zabbix_agent2.d\\"
         restart_cmd = "Restart-Service zabbix-agent2"
     else:
-        config_content = generate_linux_config(
-            python_executable, use_entry_points, str(paths["project_root"])
-        )
-        config_comment = f"# Для Linux (Zabbix Agent / Agent 2)"
+        config_content = generate_linux_config(python_executable)
         install_path = "/etc/zabbix/zabbix_agent2.d/"
         restart_cmd = "sudo systemctl restart zabbix-agent2"
 
@@ -216,13 +214,12 @@ def generate_config(output_path=None, use_entry_points=True, force_os=None):
 
     # Добавление заголовка
     header = f"""# ===========================================
-{config_comment}
+# Для {os_type.title()} (Zabbix Agent 2)
 # ===========================================
-# Сгенерировано: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+# Сгенерировано: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 # OS: {os_type.title()}
 # Zabbix Agent: {agent_version}
 # Project root: {paths["project_root"]}
-# Режим: {'Entry Points (zbx-1c-*)' if use_entry_points else 'Python Module (python -m zbx_1c)'}
 # Python: {python_executable}
 # ===========================================
 # Установка:
@@ -252,20 +249,10 @@ def generate_config(output_path=None, use_entry_points=True, force_os=None):
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(full_config)
 
-    # Безопасный вывод для Windows (избегаем проблем с кодировкой консоли)
-    def safe_print(text):
-        """Безопасный print для Windows консоли"""
-        try:
-            print(text)
-        except UnicodeEncodeError:
-            # Кодируем в ASCII с заменой невалидных символов
-            print(text.encode("ascii", errors="replace").decode("ascii"))
-
     safe_print(f"[OK] Конфигурационный файл успешно создан: {output_path}")
     safe_print(f"OS: {os_type.title()}")
     safe_print(f"Zabbix Agent: {agent_version}")
     safe_print(f"Python: {python_executable}")
-    safe_print(f"Mode: {'Entry Points' if use_entry_points else 'Python Module'}")
     safe_print(f"\nInstallation:")
     if os_type == "windows":
         safe_print(f"   Copy to: C:\\Program Files\\Zabbix Agent 2\\zabbix_agent2.d\\")
@@ -280,18 +267,16 @@ def generate_config(output_path=None, use_entry_points=True, force_os=None):
     return output_path
 
 
-if __name__ == "__main__":
-    import argparse
-
+def main():
+    """Точка входа для CLI"""
     parser = argparse.ArgumentParser(
         description="Генерация конфигурационного файла userparameter_1c.conf для Zabbix",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Примеры использования:
-  python scripts/generate_userparam_config.py
-  python scripts/generate_userparam_config.py --use-module
-  python scripts/generate_userparam_config.py -o /etc/zabbix/zabbix_agent2.d/userparameter_1c.conf
-  python scripts/generate_userparam_config.py --force-os linux
+  zbx-1c-generate-userparam
+  zbx-1c-generate-userparam -o /etc/zabbix/zabbix_agent2.d/userparameter_1c.conf
+  zbx-1c-generate-userparam --force-os linux
         """,
     )
 
@@ -301,12 +286,6 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help="Путь для сохранения конфигурации (по умолчанию: zabbix/userparameters/userparameter_1c.conf)",
-    )
-
-    parser.add_argument(
-        "--use-module",
-        action="store_true",
-        help="Использовать 'python -m zbx_1c' вместо entry points (не требует pip install -e .)",
     )
 
     parser.add_argument(
@@ -320,5 +299,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     generate_config(
-        output_path=args.output, use_entry_points=not args.use_module, force_os=args.force_os
+        output_path=args.output,
+        force_os=args.force_os,
     )
+
+
+if __name__ == "__main__":
+    main()

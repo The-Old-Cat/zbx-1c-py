@@ -18,7 +18,10 @@
 - ✅ `safe_output()` - корректный вывод JSON для Windows (через buffer)
 - ✅ `safe_print()` - защита от UnicodeEncodeError
 
-### 4. Генератор конфигов (`scripts/generate_userparam_config.py`)
+### 4. Генератор конфигов (CLI команда)
+
+**Команда:** `zbx-1c-generate-userparam`
+
 - ✅ Раздельная генерация для Windows/Linux
 - ✅ Определение версии Zabbix Agent
 - ✅ Смена рабочей директории для Windows
@@ -110,7 +113,7 @@ UserParameter=zbx1cpy.test, python -c "print('OK')"
 - [ ] Установить Python 3.10+
 - [ ] Создать виртуальное окружение: `python -m venv .venv`
 - [ ] Установить зависимости: `.venv\Scripts\pip install -e .`
-- [ ] Сгенерировать конфиг: `python scripts/generate_userparam_config.py`
+- [ ] Сгенерировать конфиг: `zbx-1c-generate-userparam`
 - [ ] Скопировать конфиг в `C:\Program Files\Zabbix Agent 2\zabbix_agent2.d\`
 - [ ] Перезапустить Zabbix Agent 2
 - [ ] Проверить: `zabbix_get.exe -s localhost -k "zbx1cpy.test"`
@@ -119,7 +122,7 @@ UserParameter=zbx1cpy.test, python -c "print('OK')"
 - [ ] Установить Python 3.10+: `apt install python3.10 python3.10-venv`
 - [ ] Создать виртуальное окружение: `python3.10 -m venv .venv`
 - [ ] Установить зависимости: `.venv/bin/pip install -e .`
-- [ ] Сгенерировать конфиг: `python3 scripts/generate_userparam_config.py`
+- [ ] Сгенерировать конфиг: `zbx-1c-generate-userparam`
 - [ ] Скопировать конфиг в `/etc/zabbix/zabbix_agentd.d/`
 - [ ] Перезапустить Zabbix Agent: `systemctl restart zabbix-agent`
 - [ ] Проверить: `zabbix_get -s localhost -k "zbx1cpy.test"`
@@ -220,7 +223,7 @@ source .venv/bin/activate
 pip install -e .
 
 # 2. Генерация конфига
-python scripts/generate_userparam_config.py
+zbx-1c-generate-userparam
 
 # 3. Копирование конфига
 sudo cp zabbix/userparameters/userparameter_1c.conf /etc/zabbix/zabbix_agentd.d/

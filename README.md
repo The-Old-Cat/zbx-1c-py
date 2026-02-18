@@ -1112,7 +1112,11 @@ pip install -e .
 #### 2. Генерация конфигурации UserParameter
 
 ```bash
-python scripts/generate_userparam_config.py
+# Через entry point (после установки)
+zbx-1c-generate-userparam
+
+# Или через uv (для разработки)
+uv run zbx-1c-generate-userparam
 ```
 
 #### 3. Копирование файла конфигурации
@@ -1181,7 +1185,7 @@ UserParameter=zbx1cpy.metrics.all,cd /d "g:\Automation\zbx-1c-py" && "g:\Automat
 UserParameter=zbx1cpy.ras.check,cd /d "g:\Automation\zbx-1c-py" && "g:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c check-ras
 ```
 
-**Для Linux** используйте `scripts/generate_userparam_config.py --force-os linux`:
+**Для Linux** используйте `zbx-1c-generate-userparam --force-os linux`:
 
 ```conf
 # Linux (Zabbix Agent 2)
@@ -1202,13 +1206,13 @@ UserParameter=zbx1cpy.metrics[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 cd "${PROJE
 
 ```bash
 # Сгенерировать конфиг для текущей ОС
-python scripts/generate_userparam_config.py
+zbx-1c-generate-userparam
 
 # Сгенерировать для Linux
-python scripts/generate_userparam_config.py --force-os linux
+zbx-1c-generate-userparam --force-os linux
 
 # Свой путь вывода
-python scripts/generate_userparam_config.py -o /etc/zabbix/zabbix_agent2.d/userparameter_1c.conf
+zbx-1c-generate-userparam -o /etc/zabbix/zabbix_agent2.d/userparameter_1c.conf
 ```
 
 **Важно:** 
