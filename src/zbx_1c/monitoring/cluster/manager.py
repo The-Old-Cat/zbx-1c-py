@@ -15,6 +15,7 @@ from ...utils.converters import (
     parse_sessions,
     parse_jobs,
 )
+from ...monitoring.server.manager import ServerManager
 
 
 def check_cluster_status(host: str, port: int, timeout: int = 5) -> str:
@@ -56,6 +57,7 @@ class ClusterManager:
         """
         self.settings = settings
         self.rac = RACClient(settings)
+        self.server_manager = ServerManager(settings)
         self._clusters_cache: Optional[List[Dict]] = None
 
     def discover_clusters(self, use_cache: bool = True) -> List[Dict]:
@@ -238,12 +240,38 @@ class ClusterManager:
 
         # Подсчет метрик
         total_sessions = len(sessions)
+        
+        # Используем строгую проверку активности сессий
+        # Критерии активности (все обязательные):
+        # 1. hibernate == 'no' (не в спящем режиме)
+        # 2. last-active-at свежее 5 минут
+        # 3. calls-last-5min >= 1 (хотя бы 1 вызов за 5 мин)
+        # 4. bytes-last-5min >= 1024 (хотя бы 1KB трафика за 5 мин)
+        from ...monitoring.session.filters import is_session_active
+        
         active_sessions = sum(
-            1 for s in sessions if s.get("session-id") and s.get("hibernate") == "no"
+            1 for s in sessions if is_session_active(
+                s, threshold_minutes=5, check_activity=True, min_calls=1,
+                check_traffic=True, min_bytes=1024
+            )
         )
 
         total_jobs = len(jobs)
         active_jobs = sum(1 for j in jobs if j.get("status") == "running")
+
+        # Получаем лимиты сессий на уровне Информационных Баз (max-connections)
+        from ...monitoring.infobase.analyzer import get_total_infobase_session_limit
+        session_limit = get_total_infobase_session_limit(cluster_id)
+
+        # Рассчитываем процент заполнения (только если лимит установлен)
+        session_percent = 0.0
+        if session_limit > 0:
+            session_percent = round((total_sessions / session_limit) * 100, 2)
+
+        # Получаем статусы рабочих серверов
+        servers_status = self.server_manager.get_servers_with_status(cluster_id)
+        working_servers_count = sum(1 for s in servers_status if s["status"] == "working")
+        total_servers_count = len(servers_status)
 
         return {
             "cluster": {
@@ -253,8 +281,12 @@ class ClusterManager:
             },
             "metrics": {
                 "total_sessions": total_sessions,
-                "active_sessions": active_sessions,
+                "active_sessions": active_sessions,  # strict: hibernate + last-active + calls + traffic
                 "total_jobs": total_jobs,
                 "active_jobs": active_jobs,
+                "session_limit": session_limit,
+                "session_percent": session_percent,
+                "working_servers": working_servers_count,
+                "total_servers": total_servers_count,
             },
         }

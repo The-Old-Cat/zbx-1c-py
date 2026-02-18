@@ -628,11 +628,17 @@ zbx-1c-metrics f93863ed-3fdb-4e01-a74c-e112c81b053b
 ```
 
 **Собираемые метрики:**
-- `total_sessions` — общее количество сессий
-- `active_sessions` — количество активных сессий (не в hibernate)
-- `total_jobs` — общее количество фоновых заданий
-- `active_bg_jobs` — количество активных фоновых заданий
-- `status` — статус кластера (1 = OK)
+
+| Метрика | Описание |
+|---------|----------|
+| `total_sessions` | Общее количество сессий |
+| `active_sessions` | **Активные** сессии (строгий критерий: hibernate=no + last-active < 5 мин + calls >= 1 + bytes >= 1024) |
+| `total_jobs` | Общее количество фоновых заданий |
+| `active_jobs` | Количество активных фоновых заданий (status=running) |
+| `session_limit` | Лимит сессий (сумма max-connections по всем ИБ) |
+| `session_percent` | Процент заполнения сессий |
+| `working_servers` | Количество рабочих серверов 1С |
+| `total_servers` | Общее количество серверов кластера |
 
 **Использование в Zabbix:**
 ```
@@ -990,11 +996,18 @@ uvicorn zbx_1c.api.main:app --reload --host 0.0.0.0 --port 8000
 
 ### Метрики кластера
 
-- `zbx1cpy.cluster.total_sessions` - Общее количество сессий
-- `zbx1cpy.cluster.active_sessions` - Количество активных сессий
-- `zbx1cpy.cluster.total_jobs` - Общее количество фоновых заданий
-- `zbx1cpy.cluster.active_jobs` - Количество активных фоновых заданий
-- `zbx1cpy.cluster.total_infobases` - Количество информационных баз
+| Ключ | Описание | Критерии |
+|------|----------|----------|
+| `zbx1cpy.cluster.total_sessions` | Общее количество сессий | Все сессии из `rac session list` |
+| `zbx1cpy.cluster.active_sessions` | Количество **активных** сессий | Строгий критерий:<br>• `hibernate == "no"`<br>• `last-active-at < 5 мин`<br>• `calls-last-5min >= 1`<br>• `bytes-last-5min >= 1024 байт` |
+| `zbx1cpy.cluster.total_jobs` | Общее количество фоновых заданий | Все задания из `rac job list` |
+| `zbx1cpy.cluster.active_jobs` | Количество активных фоновых заданий | `status == "running"` |
+| `zbx1cpy.cluster.session_limit` | Лимит сессий (сумма по ИБ) | `max-connections` по всем ИБ |
+| `zbx1cpy.cluster.session_percent` | Процент заполнения сессий | `total_sessions / session_limit * 100` |
+| `zbx1cpy.cluster.working_servers` | Количество рабочих серверов | Серверы со статусом `working` |
+| `zbx1cpy.cluster.total_servers` | Общее количество серверов | Все серверы кластера |
+
+> **Примечание:** Метрика `active_sessions` использует **строгий критерий** активности — сессия считается активной, только если пользователь реально работает (есть вызовы и трафик за последние 5 минут).
 
 ### Метрики сессий
 
