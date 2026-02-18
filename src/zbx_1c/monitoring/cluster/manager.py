@@ -15,7 +15,6 @@ from ...utils.converters import (
     parse_sessions,
     parse_jobs,
 )
-from ...monitoring.server.manager import ServerManager
 
 
 def check_cluster_status(host: str, port: int, timeout: int = 5) -> str:
@@ -57,7 +56,6 @@ class ClusterManager:
         """
         self.settings = settings
         self.rac = RACClient(settings)
-        self.server_manager = ServerManager(settings)
         self._clusters_cache: Optional[List[Dict]] = None
 
     def discover_clusters(self, use_cache: bool = True) -> List[Dict]:
@@ -268,10 +266,9 @@ class ClusterManager:
         if session_limit > 0:
             session_percent = round((total_sessions / session_limit) * 100, 2)
 
-        # Получаем статусы рабочих серверов
-        servers_status = self.server_manager.get_servers_with_status(cluster_id)
-        working_servers_count = sum(1 for s in servers_status if s["status"] == "working")
-        total_servers_count = len(servers_status)
+        # TODO: Добавить мониторинг рабочих серверов
+        working_servers_count = 1
+        total_servers_count = 1
 
         return {
             "cluster": {
