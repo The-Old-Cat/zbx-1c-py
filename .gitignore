@@ -16,3 +16,4 @@ data/*
 !data/.gitkeep
 userparameters/*
 !userparameters/.gitkeep
+zabbix/userparameters/userparameter_1c.conf
