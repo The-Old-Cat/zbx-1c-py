@@ -213,6 +213,13 @@ def generate_config(
     agent_version = detect_zabbix_agent_version()
 
     # Добавление заголовка
+    if os_type == "windows":
+        install_path = "C:\\Program Files\\Zabbix Agent 2\\zabbix_agent2.d\\"
+        restart_cmd = "Restart-Service zabbix-agent2"
+    else:
+        install_path = "/etc/zabbix/zabbix_agent2.d/"
+        restart_cmd = "sudo systemctl restart zabbix-agent2"
+
     header = f"""# ===========================================
 # Для {os_type.title()} (Zabbix Agent 2)
 # ===========================================
@@ -223,11 +230,12 @@ def generate_config(
 # Python: {python_executable}
 # ===========================================
 # Установка:
-#   Windows: Копировать в {install_path}
-#   Linux:   Копировать в {install_path}
+#   Windows: Копировать в C:\\Program Files\\Zabbix Agent 2\\zabbix_agent2.d\\
+#   Linux:   Копировать в /etc/zabbix/zabbix_agent2.d/
 #
 # Перезапуск агента:
-#   {restart_cmd}
+#   Windows: {restart_cmd}
+#   Linux:   {restart_cmd}
 #
 # Проверка:
 #   zabbix_get -s <host> -k zbx1cpy.clusters.discovery
