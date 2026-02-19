@@ -25,7 +25,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.active_jobs
+                    - active_jobs
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -47,7 +47,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.active_sessions
+                    - active_sessions
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -63,7 +63,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.session_limit
+                    - session_limit
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -79,7 +79,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.session_percent
+                    - session_percent
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -110,7 +110,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.total_jobs
+                    - total_jobs
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -126,7 +126,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.total_servers
+                    - total_servers
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -142,7 +142,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.total_sessions
+                    - total_sessions
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -158,7 +158,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.working_servers
+                    - working_servers
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
