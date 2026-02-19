@@ -179,7 +179,7 @@ class ClusterManager:
 
     def get_jobs(self, cluster_id: str) -> List[Dict]:
         """
-        Получение фоновых заданий - точная копия get_jobs из run_direct.py
+        Получение фоновых заданий
 
         Args:
             cluster_id: ID кластера
@@ -187,27 +187,11 @@ class ClusterManager:
         Returns:
             Список фоновых заданий
         """
-        cmd = [
-            str(self.settings.rac_path),
-            "job",
-            "list",
-            f"--cluster={cluster_id}",
-        ]
+        # Используем JobReader с поддержкой обоих режимов
+        from ...monitoring.jobs.reader import JobReader
 
-        # Добавляем аутентификацию если есть
-        if self.settings.user_name:
-            cmd.append(f"--cluster-user={self.settings.user_name}")
-        if self.settings.user_pass:
-            cmd.append(f"--cluster-pwd={self.settings.user_pass}")
-
-        cmd.append(f"{self.settings.rac_host}:{self.settings.rac_port}")
-
-        result = self.rac.execute(cmd)
-        if result and result["returncode"] == 0 and result["stdout"]:
-            return parse_jobs(result["stdout"])
-
-        # Если job list не поддерживается, возвращаем пустой список
-        return []
+        reader = JobReader(self.settings)
+        return reader.get_jobs(cluster_id)
 
     def get_cluster_metrics(self, cluster_id: str) -> Optional[Dict]:
         """

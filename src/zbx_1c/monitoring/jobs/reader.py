@@ -37,6 +37,7 @@ class JobReader:
         logger.debug(f"Getting jobs for cluster {cluster_id}")
 
         # Формируем команду: rac.exe job list --cluster=cluster_id host:port
+        # Примечание: команда 'job list' доступна только в новых версиях 1С (8.3.24+)
         cmd = [
             str(self.settings.rac_path),
             "job",
@@ -47,7 +48,8 @@ class JobReader:
         result = self.rac.execute(cmd)
 
         if not result or result["returncode"] != 0 or not result["stdout"]:
-            logger.error("Failed to get jobs")
+            # 'job list' не поддерживается в этой версии 1С
+            logger.debug("'job list' command not supported by this 1C version")
             return []
 
         jobs_data = parse_jobs(result["stdout"])
