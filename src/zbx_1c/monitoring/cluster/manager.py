@@ -179,7 +179,13 @@ class ClusterManager:
 
     def get_jobs(self, cluster_id: str) -> List[Dict]:
         """
-        Получение фоновых заданий
+        Получение фоновых заданий через connection list
+
+        В версиях 1С до 8.3.24 нет команды 'job list',
+        поэтому получаем задания из connection list:
+        - BackgroundJob — фоновые задания пользователей
+        - SystemBackgroundJob — системные фоновые задания
+        - JobScheduler — планировщик регламентных заданий
 
         Args:
             cluster_id: ID кластера
@@ -187,7 +193,7 @@ class ClusterManager:
         Returns:
             Список фоновых заданий
         """
-        # Используем JobReader с поддержкой обоих режимов
+        # Используем JobReader с получением из connection list
         from ...monitoring.jobs.reader import JobReader
 
         reader = JobReader(self.settings)
