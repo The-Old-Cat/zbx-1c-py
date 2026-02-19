@@ -41,7 +41,6 @@ zbx-1c-py/
 │   ├── cli/                     # CLI интерфейс
 │   │   ├── __init__.py
 │   │   ├── commands.py          # Команды CLI
-│   │   └── check_config.py      # Проверка конфигурации (скрипт)
 │   ├── core/                    # Ядро приложения
 │   │   ├── __init__.py
 │   │   ├── config.py            # Конфигурация (Settings)
@@ -62,9 +61,11 @@ zbx-1c-py/
 │   │   │   ├── __init__.py
 │   │   │   ├── collector.py     # Сбор сессий + CLI
 │   │   │   └── filters.py       # Фильтрация сессий
-│   │   └── jobs/                # Фоновые задания
-│   │       ├── __init__.py
-│   │       └── reader.py        # Чтение заданий
+│   │   ├── jobs/                # Фоновые задания
+│   │   │   ├── __init__.py
+│   │   │   └── reader.py        # Чтение заданий
+│   │   └── server/              # Серверы 1С (резерв)
+│   │       └── .gitkeep
 │   └── utils/                   # Утилиты
 │       ├── __init__.py
 │       ├── rac_client.py        # RAC клиент
@@ -73,12 +74,20 @@ zbx-1c-py/
 │       └── net.py               # Сетевые утилиты
 ├── tests/                       # Тесты
 ├── scripts/                     # Скрипты
+│   ├── README.md
+│   ├── deploy/                  # Скрипты развёртывания
+│   │   └── .gitkeep
+│   └── dev/                     # Скрипты разработки
+│       └── .gitkeep
 ├── data/                        # Данные
+│   └── .gitkeep
 ├── docs/                        # Документация
 ├── logs/                        # Логи
+│   └── .gitkeep
 ├── zabbix/                      # Конфигурация Zabbix
 │   ├── templates/               # Шаблоны Zabbix
-│   └── userparameter_1c.conf    # UserParameter для Zabbix Agent
+│   └── userparameters/          # UserParameter для Zabbix Agent
+│       └── .gitkeep
 ├── .env.example                 # Пример конфигурации
 ├── pyproject.toml               # Конфигурация проекта
 ├── README.md
