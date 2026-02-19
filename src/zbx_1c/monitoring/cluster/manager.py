@@ -231,38 +231,63 @@ class ClusterManager:
         # Подсчет метрик
         total_sessions = len(sessions)
 
-        # Используем раздельные пороги активности для разных типов сессий
-        # Рекомендации:
-        # - Designer (Конфигуратор): 15 мин (разработчик читает код без вызовов)
-        # - 1CV8C (Тонкий клиент): 5 мин (стандартная сессия)
-        # - BackgroundJob: 2 мин (фоновое задание работает интенсивно)
-        # - SystemBackgroundJob: 2 мин (системное задание)
+        # Определение активности сессий по last-active-at
+        # Основной критерий: last-active-at
+        # - Если last-active-at <= порог → сессия активна
+        # - Если last-active-at > порог → применяем дополнительные фильтры (hibernate, calls, bytes)
+        #
+        # Пороги по типам сессий:
+        # - Designer (Конфигуратор): 10 минут
+        # - Остальные: 5 минут
         from ...monitoring.session.filters import is_session_active
 
         def get_session_threshold(session: Dict) -> int:
-            """Возвращает порог активности в минутах по типу сессии"""
+            """Возвращает порог last-active-at в минутах по типу сессии"""
             app_id = session.get("app-id", "")
 
             if app_id == "Designer":
-                return 15  # Конфигуратор — 15 минут
-            elif app_id in ["BackgroundJob", "SystemBackgroundJob"]:
-                return 2   # Фоновые задания — 2 минуты
-            elif app_id == "JobScheduler":
-                return 999 # Всегда активен
+                return 10  # Конфигуратор — 10 минут
             else:
                 return 5   # Остальные — 5 минут
 
         def is_session_active_custom(session: Dict) -> bool:
-            """Проверка активности сессии с индивидуальным порогом"""
+            """
+            Проверка активности сессии:
+            1. Если last-active-at <= порог → активна
+            2. Если last-active-at > порог → проверяем hibernate, calls, bytes
+            """
             threshold = get_session_threshold(session)
-            return is_session_active(
-                session,
-                threshold_minutes=threshold,
-                check_activity=True,
-                min_calls=1,
-                check_traffic=True,
-                min_bytes=1024,
-            )
+
+            # Проверяем last-active-at
+            from datetime import datetime, timedelta
+
+            try:
+                last_active_str = session.get("last-active-at", "")
+                if not last_active_str:
+                    return False
+
+                last_active = datetime.fromisoformat(last_active_str.replace("Z", "+00:00"))
+                if last_active.tzinfo:
+                    now = datetime.now(last_active.tzinfo)
+                else:
+                    now = datetime.now()
+
+                # Если last-active-at свежее порога → сессия активна
+                if last_active >= now - timedelta(minutes=threshold):
+                    return True
+
+                # Если last-active-at старше порога → применяем строгие фильтры
+                return is_session_active(
+                    session,
+                    threshold_minutes=threshold,
+                    check_activity=True,
+                    min_calls=1,
+                    check_traffic=True,
+                    min_bytes=1024,
+                )
+
+            except (ValueError, TypeError):
+                return False
 
         active_sessions = sum(1 for s in sessions if is_session_active_custom(s))
 
