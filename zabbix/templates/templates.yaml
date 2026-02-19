@@ -7,6 +7,36 @@ zabbix_export:
     - uuid: 6217edce72c8467880e95f5fb18910b1
       template: "1C Enterprise Monitoring"
       name: "1C Enterprise Monitoring"
+      description: |
+        Шаблон "1C Enterprise Monitoring" предназначен для мониторинга кластеров 1С.
+          
+          Основные возможности:
+          - Discovery rule "1C Clusters Discovery" автоматически обнаруживает все кластеры.
+          - Создаются dependent items:
+              - Active sessions: количество активных пользовательских сессий.
+              - Total sessions: общее количество сессий в кластере.
+              - Active background jobs: реально выполняющиеся фоновые задания.
+              - Total jobs: общее количество фоновых заданий в кластере.
+              - Total servers / Working servers: количество серверов и рабочих серверов в кластере.
+              - Session limit / Session usage percent: контроль лимитов и процента использования сессий.
+              - Cluster status: текущий статус кластера.
+              - Cluster metrics: все собранные метрики в сыром виде.
+          - Создаются триггеры для каждого item_prototype:
+              - "Background jobs stall detected (>80% active)": более 80% фоновых заданий активны.
+              - "Cluster {#CLUSTER.NAME} session usage > 90%": превышение 90% использования сессий.
+              - "Cluster {#CLUSTER.NAME} is unavailable": кластер недоступен.
+              - "Total jobs [{#CLUSTER.ID}].last(),5m)>100": резкий рост очереди заданий.
+
+          Рекомендации для дежурной смены:
+          - При срабатывании триггеров проверять нагрузку на серверы и очереди фоновых заданий.
+          - Контролировать лицензии при превышении 90% использования сессий.
+          - Проверять доступность серверов кластера при недоступности кластера.
+          - Все замечания фиксировать в журнале дежурной смены.
+          
+          Графики дашборда:
+          - Total sessions, Active sessions: оценка нагрузки пользователей.
+          - Total jobs, Active background jobs: контроль фоновых заданий и очередей.
+          - Текстовый виджет содержит инструкцию для дежурной смены.
       groups:
         - name: "1C Servers"
       discovery_rules:
@@ -14,6 +44,9 @@ zabbix_export:
           name: "1C Clusters Discovery"
           key: zbx1cpy.clusters.discovery
           delay: 1h
+          description: |
+            Discovery rule для обнаружения всех кластеров 1С.
+            Создаёт dependent items и триггеры для каждого кластера.
           item_prototypes:
             - uuid: 3478367194024c5ca69fa36726249b8d
               name: "1C: Active background jobs [{#CLUSTER.NAME}]"
@@ -21,11 +54,13 @@ zabbix_export:
               key: "zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]"
               delay: "0"
               trends: "0"
-              description: "Реально выполняющиеся задания"
+              description: |
+                Количество реально выполняющихся фоновых заданий в кластере.
+                Используется для анализа нагрузки и обнаружения зависших заданий.
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - active_jobs
+                    - $.active_jobs
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -33,21 +68,31 @@ zabbix_export:
                   value: 1С
               trigger_prototypes:
                 - uuid: cfecf83689a2468580e6d8f9a0c5b8af
-                  expression: "last(/1C Enterprise Monitoring/zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}])>10"
-                  name: "1C: Active jobs[{#CLUSTER.ID}].last())>10"
+                  expression: "avg(/1C Enterprise Monitoring/zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}],#5)>10"
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: "avg(/1C Enterprise Monitoring/zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}],#5)<5"
+                  name: "1C: High average background jobs on cluster {#CLUSTER.ID} (avg > 5 for 10 checks)"
+                  opdata: "Current avg: {ITEM.VALUE1}"
                   priority: AVERAGE
-                  description: "Зависшие задания"
+                  description: |
+                    Триггер срабатывает, если среднее количество активных фоновых заданий за 5 проверок
+                    превышает 10. Считается признаком возможного зависания заданий.
+                  tags:
+                    - tag: App
+                      value: 1С
             - uuid: 0c44fd000a6f480b9e63f88de8bf4546
               name: "1C: Active sessions [{#CLUSTER.NAME}]"
               type: DEPENDENT
               key: "zbx1cpy.cluster.active_sessions[{#CLUSTER.ID}]"
               delay: "0"
               trends: "0"
-              description: "Сессии с активностью за последние 5 мин"
+              description: |
+                Количество активных сессий в кластере за последние 5 минут.
+                Используется для мониторинга нагрузки на кластер.
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - active_sessions
+                    - $.active_sessions
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -60,10 +105,11 @@ zabbix_export:
               delay: "0"
               trends: "0"
               units: sessions
+              description: "Лимит сессий кластера."
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - session_limit
+                    - $.session_limit
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -76,10 +122,11 @@ zabbix_export:
               delay: "0"
               trends: "0"
               units: "%"
+              description: "Процент использования сессий от лимита."
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - session_percent
+                    - $.session_percent
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -87,9 +134,16 @@ zabbix_export:
                   value: 1С
               trigger_prototypes:
                 - uuid: 17bf559686a54f5793c5f985649a02c6
-                  expression: "last(/1C Enterprise Monitoring/zbx1cpy.cluster.session_percent[{#CLUSTER.ID}])>90"
+                  expression: "min(/1C Enterprise Monitoring/zbx1cpy.cluster.session_percent[{#CLUSTER.ID}],5m) > 90"
                   name: "1C: Cluster {#CLUSTER.NAME} session usage > 90%"
+                  opdata: "Current load: {ITEM.LASTVALUE1}%"
                   priority: AVERAGE
+                  description: |
+                    Срабатывает при превышении 90% использования сессий кластера.
+                    Необходима проверка лицензий и нагрузки.
+                  tags:
+                    - tag: App
+                      value: 1С
             - uuid: 2cac5b5bb2e8478b8c9b3227993fcf3b
               name: "1C: Cluster status [{#CLUSTER.NAME}]"
               key: "zbx1cpy.cluster.status[{#CLUSTER.ID}]"
@@ -100,22 +154,46 @@ zabbix_export:
               tags:
                 - tag: App
                   value: 1С
+              trigger_prototypes:
+                - uuid: 6072080f819341379495fe4033a1cf09
+                  expression: 'count(/1C Enterprise Monitoring/zbx1cpy.cluster.status[{#CLUSTER.ID}],#2,"ne","available")=2'
+                  name: "1C: Cluster {#CLUSTER.NAME} is {ITEM.LASTVALUE}"
+                  opdata: "Current status: {ITEM.LASTVALUE1}"
+                  priority: HIGH
+                  description: |
+                    Срабатывает, если кластер недоступен 2 раза подряд.
+                    Требуется проверка состояния серверов кластера.
+                  tags:
+                    - tag: App
+                      value: 1С
             - uuid: 8ae4c7e526f34e90b83f555ecbceb0a9
-              name: "1C: Cluster {#CLUSTER.NAME} total jobs"
+              name: "1C: Total jobs [{#CLUSTER.NAME}]"
               type: DEPENDENT
               key: "zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]"
               delay: "0"
               trends: "0"
-              description: "Реально выполняющиеся задания"
+              description: "Общее количество фоновых заданий в кластере."
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - total_jobs
+                    - $.total_jobs
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
                 - tag: App
                   value: 1С
+              trigger_prototypes:
+                - uuid: 0b6cb8eb00da428d819098c9cd869757
+                  expression: "max(/1C Enterprise Monitoring/zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}],5)-min(/1C Enterprise Monitoring/zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}],5)>100"
+                  name: "1C: Total jobs [{#CLUSTER.ID}].last(),5m)>100"
+                  opdata: "Difference: {ITEM.VALUE1}, Total counter: {ITEM.LASTVALUE1}"
+                  priority: AVERAGE
+                  description: |
+                    Срабатывает, если количество фоновых заданий резко увеличилось
+                    за последние 5 минут (рост > 100). Требуется проверка очереди заданий.
+                  tags:
+                    - tag: App
+                      value: 1С
             - uuid: a30e42c438ec458cb6c71e24a66df52e
               name: "1C: Total servers [{#CLUSTER.NAME}]"
               type: DEPENDENT
@@ -123,10 +201,11 @@ zabbix_export:
               delay: "0"
               trends: "0"
               units: servers
+              description: "Общее количество серверов в кластере."
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - total_servers
+                    - $.total_servers
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -138,11 +217,11 @@ zabbix_export:
               key: "zbx1cpy.cluster.total_sessions[{#CLUSTER.ID}]"
               delay: "0"
               trends: "0"
-              description: "Общее количество сессий в кластере"
+              description: "Общее количество сессий в кластере."
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - total_sessions
+                    - $.total_sessions
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -155,10 +234,11 @@ zabbix_export:
               delay: "0"
               trends: "0"
               units: servers
+              description: "Количество рабочих серверов в кластере."
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - working_servers
+                    - $.working_servers
               master_item:
                 key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               tags:
@@ -170,7 +250,7 @@ zabbix_export:
               history: 7d
               value_type: LOG
               trends: "0"
-              description: "Сырые данные после обнаружения"
+              description: "Сырые данные после обнаружения кластера."
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -178,55 +258,33 @@ zabbix_export:
               tags:
                 - tag: App
                   value: 1С
+          trigger_prototypes:
+            - uuid: 0e985395dce24956ada78dfa97c72c9b
+              expression: |
+                (last(/1C Enterprise Monitoring/zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]) / 
+                last(/1C Enterprise Monitoring/zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]) > 0.8)
+                and
+                last(/1C Enterprise Monitoring/zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]) > 10
+              name: "1C: Background jobs stall detected (>80% active) on {#CLUSTER.NAME}"
+              opdata: "Active: {ITEM.LASTVALUE1}, Total: {ITEM.LASTVALUE2}"
+              priority: AVERAGE
+              description: |
+                Срабатывает, если более 80% всех фоновых заданий кластера активны.
+                Требуется проверка зависших задач.
+              tags:
+                - tag: App
+                  value: 1С
       tags:
         - tag: App
-          value: 1C
+          value: 1С
       dashboards:
         - uuid: 72059c37f0284fde9443f6a2069c05fc
           name: "1C Clusters"
           pages:
             - widgets:
                 - type: graphprototype
-                  width: "24"
-                  height: "6"
-                  fields:
-                    - type: INTEGER
-                      name: columns
-                      value: "1"
-                    - type: ITEM_PROTOTYPE
-                      name: itemid.0
-                      value:
-                        host: "1C Enterprise Monitoring"
-                        key: "zbx1cpy.cluster.active_sessions[{#CLUSTER.ID}]"
-                    - type: STRING
-                      name: reference
-                      value: QRVJA
-                    - type: INTEGER
-                      name: source_type
-                      value: "3"
-                - type: graphprototype
-                  "y": "6"
-                  width: "24"
-                  height: "6"
-                  fields:
-                    - type: INTEGER
-                      name: columns
-                      value: "1"
-                    - type: ITEM_PROTOTYPE
-                      name: itemid.0
-                      value:
-                        host: "1C Enterprise Monitoring"
-                        key: "zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]"
-                    - type: STRING
-                      name: reference
-                      value: XQUXN
-                    - type: INTEGER
-                      name: source_type
-                      value: "3"
-                - type: graphprototype
-                  x: "24"
-                  width: "24"
-                  height: "6"
+                  width: "36"
+                  height: "4"
                   fields:
                     - type: INTEGER
                       name: columns
@@ -238,14 +296,14 @@ zabbix_export:
                         key: "zbx1cpy.cluster.total_sessions[{#CLUSTER.ID}]"
                     - type: STRING
                       name: reference
-                      value: JFIAW
+                      value: PTOVF
                     - type: INTEGER
                       name: source_type
                       value: "3"
                 - type: graphprototype
-                  x: "48"
-                  width: "24"
-                  height: "6"
+                  "y": "4"
+                  width: "36"
+                  height: "4"
                   fields:
                     - type: INTEGER
                       name: columns
@@ -254,10 +312,49 @@ zabbix_export:
                       name: itemid.0
                       value:
                         host: "1C Enterprise Monitoring"
-                        key: "zbx1cpy.cluster.session_percent[{#CLUSTER.ID}]"
+                        key: "zbx1cpy.cluster.active_sessions[{#CLUSTER.ID}]"
                     - type: STRING
                       name: reference
-                      value: VDCHP
+                      value: IXTVZ
+                    - type: INTEGER
+                      name: source_type
+                      value: "3"
+                - type: graphprototype
+                  x: "36"
+                  width: "36"
+                  height: "4"
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: "1"
+                    - type: ITEM_PROTOTYPE
+                      name: itemid.0
+                      value:
+                        host: "1C Enterprise Monitoring"
+                        key: "zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]"
+                    - type: STRING
+                      name: reference
+                      value: KBPWH
+                    - type: INTEGER
+                      name: source_type
+                      value: "3"
+                - type: graphprototype
+                  x: "36"
+                  "y": "4"
+                  width: "36"
+                  height: "4"
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: "1"
+                    - type: ITEM_PROTOTYPE
+                      name: itemid.0
+                      value:
+                        host: "1C Enterprise Monitoring"
+                        key: "zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]"
+                    - type: STRING
+                      name: reference
+                      value: KIPJI
                     - type: INTEGER
                       name: source_type
                       value: "3"
