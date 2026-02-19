@@ -231,26 +231,40 @@ class ClusterManager:
         # Подсчет метрик
         total_sessions = len(sessions)
 
-        # Используем строгую проверку активности сессий
-        # Критерии активности (все обязательные):
-        # 1. hibernate == 'no' (не в спящем режиме)
-        # 2. last-active-at свежее 5 минут
-        # 3. calls-last-5min >= 1 (хотя бы 1 вызов за 5 мин)
-        # 4. bytes-last-5min >= 1024 (хотя бы 1KB трафика за 5 мин)
+        # Используем раздельные пороги активности для разных типов сессий
+        # Рекомендации:
+        # - Designer (Конфигуратор): 15 мин (разработчик читает код без вызовов)
+        # - 1CV8C (Тонкий клиент): 5 мин (стандартная сессия)
+        # - BackgroundJob: 2 мин (фоновое задание работает интенсивно)
+        # - SystemBackgroundJob: 2 мин (системное задание)
         from ...monitoring.session.filters import is_session_active
 
-        active_sessions = sum(
-            1
-            for s in sessions
-            if is_session_active(
-                s,
-                threshold_minutes=5,
+        def get_session_threshold(session: Dict) -> int:
+            """Возвращает порог активности в минутах по типу сессии"""
+            app_id = session.get("app-id", "")
+
+            if app_id == "Designer":
+                return 15  # Конфигуратор — 15 минут
+            elif app_id in ["BackgroundJob", "SystemBackgroundJob"]:
+                return 2   # Фоновые задания — 2 минуты
+            elif app_id == "JobScheduler":
+                return 999 # Всегда активен
+            else:
+                return 5   # Остальные — 5 минут
+
+        def is_session_active_custom(session: Dict) -> bool:
+            """Проверка активности сессии с индивидуальным порогом"""
+            threshold = get_session_threshold(session)
+            return is_session_active(
+                session,
+                threshold_minutes=threshold,
                 check_activity=True,
                 min_calls=1,
                 check_traffic=True,
                 min_bytes=1024,
             )
-        )
+
+        active_sessions = sum(1 for s in sessions if is_session_active_custom(s))
 
         total_jobs = len(jobs)
 
