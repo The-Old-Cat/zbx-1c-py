@@ -253,7 +253,28 @@ class ClusterManager:
         )
 
         total_jobs = len(jobs)
-        active_jobs = sum(1 for j in jobs if j.get("status") == "running")
+
+        # Определение активности фоновых заданий
+        # Критерии активности по типам:
+        # 1. JobScheduler — всегда активен (планировщик работает постоянно)
+        # 2. SystemBackgroundJob — активен, если запущен
+        # 3. BackgroundJob — активен, если запущен
+        def is_job_active(job: Dict) -> bool:
+            """Проверка активности задания по типу"""
+            app_id = job.get("app-id", "")
+            status = job.get("status", "")
+
+            # JobScheduler всегда активен
+            if app_id == "JobScheduler":
+                return True
+
+            # SystemBackgroundJob и BackgroundJob активны, если running
+            if app_id in ["SystemBackgroundJob", "BackgroundJob"]:
+                return status == "running"
+
+            return False
+
+        active_jobs = sum(1 for j in jobs if is_job_active(j))
 
         # Получаем лимиты сессий на уровне Информационных Баз (max-connections)
         from ...monitoring.infobase.analyzer import get_total_infobase_session_limit
