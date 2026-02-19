@@ -254,23 +254,23 @@ class ClusterManager:
 
         total_jobs = len(jobs)
 
-        # Определение активности фоновых заданий
+        # Определение активности фоновых заданий по hibernate
         # Критерии активности по типам:
         # 1. JobScheduler — всегда активен (планировщик работает постоянно)
-        # 2. SystemBackgroundJob — активен, если запущен
-        # 3. BackgroundJob — активен, если запущен
+        # 2. SystemBackgroundJob — активен, если hibernate == 'no'
+        # 3. BackgroundJob — активен, если hibernate == 'no'
         def is_job_active(job: Dict) -> bool:
-            """Проверка активности задания по типу"""
+            """Проверка активности задания по типу и hibernate"""
             app_id = job.get("app-id", "")
-            status = job.get("status", "")
+            hibernate = job.get("hibernate", "no")
 
             # JobScheduler всегда активен
             if app_id == "JobScheduler":
                 return True
 
-            # SystemBackgroundJob и BackgroundJob активны, если running
+            # SystemBackgroundJob и BackgroundJob активны, если не в hibernate
             if app_id in ["SystemBackgroundJob", "BackgroundJob"]:
-                return status == "running"
+                return hibernate == "no"
 
             return False
 

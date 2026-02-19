@@ -1,10 +1,12 @@
 """
 Чтение информации о фоновых заданиях
 
-Получение заданий из connection list (rac connection list):
+Получение заданий из session list (rac session list):
 - BackgroundJob — фоновые задания пользователей
 - SystemBackgroundJob — системные фоновые задания
 - JobScheduler — планировщик регламентных заданий
+
+Использование session list позволяет получить поле hibernate для определения активности.
 """
 
 from typing import List, Dict, Optional
@@ -30,7 +32,7 @@ class JobReader:
 
     def get_jobs(self, cluster_id: str, infobase: Optional[str] = None) -> List[Dict]:
         """
-        Получение списка фоновых заданий через connection list
+        Получение списка фоновых заданий через session list
 
         Args:
             cluster_id: ID кластера
@@ -41,10 +43,10 @@ class JobReader:
         """
         logger.debug(f"Getting jobs for cluster {cluster_id}")
 
-        # Формируем команду: rac.exe connection list --cluster=cluster_id host:port
+        # Формируем команду: rac.exe session list --cluster=cluster_id host:port
         cmd = [
             str(self.settings.rac_path),
-            "connection",
+            "session",
             "list",
             f"--cluster={cluster_id}",
             f"{self.settings.rac_host}:{self.settings.rac_port}",
@@ -59,31 +61,38 @@ class JobReader:
         result = self.rac.execute(cmd)
 
         if not result or result["returncode"] != 0 or not result["stdout"]:
-            logger.debug(f"Connection list returned empty or error: {result}")
+            logger.debug(f"Session list returned empty or error: {result}")
             return []
 
-        connections = parse_rac_output(result["stdout"])
+        sessions = parse_rac_output(result["stdout"])
         jobs = []
 
-        for conn in connections:
-            app = conn.get("application", "")
+        for session in sessions:
+            app_id = session.get("app-id", "")
 
             # Фильтруем только фоновые задания
-            if app in ["BackgroundJob", "SystemBackgroundJob", "JobScheduler"]:
+            if app_id in ["BackgroundJob", "SystemBackgroundJob", "JobScheduler"]:
                 # Фильтрация по информационной базе
-                if infobase and conn.get("infobase") != infobase:
+                if infobase and session.get("infobase") != infobase:
                     continue
 
+                # Определение активности по hibernate
+                hibernate = session.get("hibernate", "no")
+                status = "running" if hibernate == "no" else "idle"
+
                 jobs.append({
-                    "job-id": conn.get("connection", ""),
-                    "infobase": conn.get("infobase", ""),
-                    "user-name": app,  # Используем application как имя
-                    "started-at": conn.get("connected-at", ""),
-                    "status": "running",
-                    "app-id": app,
-                    "host": conn.get("host", ""),
-                    "process": conn.get("process", ""),
+                    "job-id": session.get("session", ""),
+                    "session-id": session.get("session-id", ""),
+                    "infobase": session.get("infobase", ""),
+                    "user-name": session.get("user-name", ""),
+                    "started-at": session.get("started-at", ""),
+                    "last-active-at": session.get("last-active-at", ""),
+                    "status": status,
+                    "app-id": app_id,
+                    "hibernate": hibernate,
+                    "host": session.get("host", ""),
+                    "process": session.get("process", ""),
                 })
 
-        logger.debug(f"Found {len(jobs)} jobs from connections")
+        logger.debug(f"Found {len(jobs)} jobs from sessions")
         return jobs
