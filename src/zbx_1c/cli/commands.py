@@ -190,26 +190,16 @@ def get_sessions(settings: Settings, cluster_id: str) -> List[Dict]:
 
 
 def get_jobs(settings: Settings, cluster_id: str) -> List[Dict]:
-    """Получение фоновых заданий"""
-    cmd_parts = [
-        str(settings.rac_path),
-        "job",
-        "list",
-        f"--cluster={cluster_id}",
-    ]
+    """
+    Получение фоновых заданий через connection list
 
-    if settings.user_name:
-        cmd_parts.append(f"--cluster-user={settings.user_name}")
-    if settings.user_pass:
-        cmd_parts.append(f"--cluster-pwd={settings.user_pass}")
+    В версиях 1С до 8.3.24 нет команды 'job list',
+    поэтому получаем задания из connection list.
+    """
+    from ..monitoring.jobs.reader import JobReader
 
-    cmd_parts.append(f"{settings.rac_host}:{settings.rac_port}")
-
-    result = execute_rac_command(cmd_parts)
-    if result and result["returncode"] == 0 and result["stdout"]:
-        return parse_rac_output(result["stdout"])
-
-    return []
+    reader = JobReader(settings)
+    return reader.get_jobs(cluster_id)
 
 
 @click.group()
