@@ -642,8 +642,11 @@ zbx-1c-metrics f93863ed-3fdb-4e01-a74c-e112c81b053b
     "total_sessions": 15,
     "active_sessions": 12,
     "total_jobs": 3,
-    "active_bg_jobs": 1,
-    "status": 1
+    "active_jobs": 1,
+    "session_limit": 20,
+    "session_percent": 75.0,
+    "working_servers": 2,
+    "total_servers": 2
   }
 }
 ```
@@ -661,8 +664,11 @@ zbx-1c-metrics f93863ed-3fdb-4e01-a74c-e112c81b053b
       "total_sessions": 15,
       "active_sessions": 12,
       "total_jobs": 3,
-      "active_bg_jobs": 1,
-      "status": 1
+      "active_jobs": 1,
+      "session_limit": 20,
+      "session_percent": 75.0,
+      "working_servers": 2,
+      "total_servers": 2
     }
   },
   {
@@ -675,8 +681,11 @@ zbx-1c-metrics f93863ed-3fdb-4e01-a74c-e112c81b053b
       "total_sessions": 5,
       "active_sessions": 3,
       "total_jobs": 1,
-      "active_bg_jobs": 0,
-      "status": 1
+      "active_jobs": 0,
+      "session_limit": 10,
+      "session_percent": 50.0,
+      "working_servers": 1,
+      "total_servers": 1
     }
   }
 ]
@@ -687,9 +696,9 @@ zbx-1c-metrics f93863ed-3fdb-4e01-a74c-e112c81b053b
 | Метрика | Описание |
 |---------|----------|
 | `total_sessions` | Общее количество сессий |
-| `active_sessions` | **Активные** сессии (строгий критерий: hibernate=no + last-active < 5 мин + calls >= 1 + bytes >= 1024) |
+| `active_sessions` | **Активные** сессии (двухуровневый критерий: last-active-at ≤ 10 мин для Designer или ≤ 5 мин для остальных, либо hibernate=no + calls ≥ 1 + bytes ≥ 1024) |
 | `total_jobs` | Общее количество фоновых заданий |
-| `active_jobs` | Количество активных фоновых заданий (status=running) |
+| `active_jobs` | Количество активных фоновых заданий (JobScheduler всегда активен, остальные по hibernate) |
 | `session_limit` | Лимит сессий (сумма max-connections по всем ИБ) |
 | `session_percent` | Процент заполнения сессий |
 | `working_servers` | Количество рабочих серверов 1С |
@@ -1056,15 +1065,21 @@ uvicorn zbx_1c.api.main:app --reload --host 0.0.0.0 --port 8000
 | Ключ | Описание | Критерии |
 |------|----------|----------|
 | `zbx1cpy.cluster.total_sessions` | Общее количество сессий | Все сессии из `rac session list` |
-| `zbx1cpy.cluster.active_sessions` | Количество **активных** сессий | Строгий критерий:<br>• `hibernate == "no"`<br>• `last-active-at < 5 мин`<br>• `calls-last-5min >= 1`<br>• `bytes-last-5min >= 1024 байт` |
-| `zbx1cpy.cluster.total_jobs` | Общее количество фоновых заданий | Все задания из `rac job list` |
-| `zbx1cpy.cluster.active_jobs` | Количество активных фоновых заданий | `status == "running"` |
+| `zbx1cpy.cluster.active_sessions` | Количество **активных** сессий | **Двухуровневый критерий**:<br>1️⃣ **last-active-at ≤ порог** → активна<br>2️⃣ **last-active-at > порог** → строгая проверка:<br>   • `hibernate == "no"`<br>   • `calls-last-5min >= 1`<br>   • `bytes-last-5min >= 1024 байт`<br><br>**Пороги по типам**:<br>• `Designer` (Конфигуратор): **10 минут**<br>• Остальные: **5 минут** |
+| `zbx1cpy.cluster.total_jobs` | Общее количество фоновых заданий | Все задания из `rac session list` с `app-id` = BackgroundJob / SystemBackgroundJob / JobScheduler |
+| `zbx1cpy.cluster.active_jobs` | Количество активных фоновых заданий | **По типу задания**:<br>• `JobScheduler`: **всегда активен**<br>• `SystemBackgroundJob`: `hibernate == "no"`<br>• `BackgroundJob`: `hibernate == "no"` |
 | `zbx1cpy.cluster.session_limit` | Лимит сессий (сумма по ИБ) | `max-connections` по всем ИБ |
 | `zbx1cpy.cluster.session_percent` | Процент заполнения сессий | `total_sessions / session_limit * 100` |
 | `zbx1cpy.cluster.working_servers` | Количество рабочих серверов | Серверы со статусом `working` |
 | `zbx1cpy.cluster.total_servers` | Общее количество серверов | Все серверы кластера |
 
-> **Примечание:** Метрика `active_sessions` использует **строгий критерий** активности — сессия считается активной, только если пользователь реально работает (есть вызовы и трафик за последние 5 минут).
+> **Примечание:** Метрика `active_sessions` использует **двухуровневый критерий** активности:
+> 1. **last-active-at ≤ порог** → сессия активна (быстрая проверка)
+> 2. **last-active-at > порог** → строгая проверка (hibernate + calls + bytes)
+> 
+> **Пороги last-active-at:**
+> - **Designer (Конфигуратор)**: 10 минут (разработчик может читать код без вызовов)
+> - **Остальные**: 5 минут (стандартная сессия)
 
 ### Метрики сессий
 
