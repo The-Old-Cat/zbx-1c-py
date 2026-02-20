@@ -16,6 +16,7 @@ from ...utils.converters import (
     parse_sessions,
     parse_jobs,
     parse_working_servers,
+    parse_rac_output,
 )
 from ...core.models import WorkingServerInfo
 
@@ -205,105 +206,115 @@ class ClusterManager:
     def get_working_servers(self, cluster_id: str) -> List[WorkingServerInfo]:
         """
         Получение списка рабочих серверов кластера
-        
-        Команда: rac server list --cluster=<cluster_id> host:port
-        
-        Возвращаемые поля:
+
+        Команда: rac server --cluster=<cluster_id> list --cluster-user=... --cluster-pwd=... host:port
+
+        Возвращаемые поля (rac server list):
+        - server: UUID сервера
+        - agent-host: хост агента сервера
+        - agent-port: порт агента сервера
         - name: имя сервера
-        - host: хост рабочего сервера
-        - port: порт рабочего сервера
-        - status: статус (working/not-working)
-        - memory-used: используемая память (КБ)
+        - using: назначение (main/secondary)
         - memory-limit: лимит памяти (КБ)
-        - start-time: время запуска сервера
-        - current-connections: текущее количество сессий
-        - limit-connections: лимит сессий на сервере
-        
+        - connections-limit: лимит сессий
+        - cluster-port: порт кластера
+
         Args:
             cluster_id: ID кластера
-            
+
         Returns:
             Список рабочих серверов
         """
         logger.debug(f"Getting working servers for cluster {cluster_id}")
-        
-        # Формируем команду: rac.exe server list --cluster=cluster_id host:port
+
+        # Формируем команду: rac.exe server --cluster=cluster_id list host:port
         cmd = [
             str(self.settings.rac_path),
             "server",
-            "list",
             f"--cluster={cluster_id}",
-            f"{self.settings.rac_host}:{self.settings.rac_port}",
+            "list",
         ]
-        
+
         # Добавляем аутентификацию если есть
         if self.settings.user_name:
             cmd.append(f"--cluster-user={self.settings.user_name}")
         if self.settings.user_pass:
             cmd.append(f"--cluster-pwd={self.settings.user_pass}")
-        
+
+        cmd.append(f"{self.settings.rac_host}:{self.settings.rac_port}")
+
         result = self.rac.execute(cmd)
-        
+
         if not result or result["returncode"] != 0 or not result["stdout"]:
             logger.debug(f"Server list returned empty or error for cluster {cluster_id}")
             return []
-        
+
         # Парсим вывод
         servers_data = parse_working_servers(result["stdout"])
         servers = []
-        
+
         for data in servers_data:
             try:
-                # Определяем статус сервера
-                # В 1С статус может быть "working" или "not-working"
-                # Также может быть пустым или отсутствовать
-                raw_status = data.get("status", "").lower()
-                if raw_status == "working":
-                    status = "working"
-                elif raw_status == "not-working":
-                    status = "not-working"
-                else:
-                    # Если статус не указан, считаем working если есть хост
-                    status = "working" if data.get("host") else "unknown"
+                # Используем agent-host и agent-port из rac server list
+                agent_host = data.get("agent-host", self.settings.rac_host)
+                agent_port = data.get("agent-port", 1540)
                 
+                # memory-limit может быть строкой "0" или None
+                memory_limit_raw = data.get("memory-limit", 0)
+                try:
+                    memory_limit = int(memory_limit_raw) if memory_limit_raw else 0
+                except (ValueError, TypeError):
+                    memory_limit = 0
+                
+                # connections-limit
+                limit_conn_raw = data.get("connections-limit", 0)
+                try:
+                    limit_connections = int(limit_conn_raw) if limit_conn_raw else 0
+                except (ValueError, TypeError):
+                    limit_connections = 0
+
+                # Статус определяем по наличию agent-host
+                status = "working" if agent_host else "unknown"
+
                 server = WorkingServerInfo(
                     name=data.get("name", ""),
-                    host=data.get("host", self.settings.rac_host),
-                    port=int(data.get("port", self.settings.rac_port)),
+                    host=agent_host,
+                    port=int(agent_port) if agent_port else 1540,
                     status=status,
-                    memory_used=int(data.get("memory-used", 0) or 0),
-                    memory_limit=int(data.get("memory-limit", 0) or 0),
-                    start_time=self._parse_datetime(data.get("start-time", "")),
-                    current_connections=int(data.get("current-connections", 0) or 0),
-                    limit_connections=int(data.get("limit-connections", 0) or 0),
-                    cluster_id=data.get("cluster"),
+                    memory_used=0,  # rac server list не возвращает memory-used
+                    memory_limit=memory_limit,
+                    start_time=None,  # rac server list не возвращает start-time
+                    current_connections=0,  # rac server list не возвращает current-connections
+                    limit_connections=limit_connections,
+                    cluster_id=data.get("server"),  # UUID сервера
                 )
-                
+
                 servers.append(server)
                 logger.debug(
                     f"Found working server: {server.name} ({server.host}:{server.port}) "
-                    f"[status: {server.status}, memory: {server.memory_used}/{server.memory_limit} KB]"
+                    f"[status: {server.status}, memory_limit: {server.memory_limit} KB, "
+                    f"limit_connections: {server.limit_connections}]"
                 )
-                
+
             except Exception as e:
                 logger.error(f"Ошибка парсинга рабочего сервера: {e}")
-        
+
         logger.debug(f"Found {len(servers)} working servers for cluster {cluster_id}")
         return servers
     
     def _parse_datetime(self, dt_string: str) -> Optional[datetime]:
         """
         Парсинг строки даты/времени из вывода rac
-        
+
         Args:
             dt_string: Строка даты/времени в формате ISO
-            
+
         Returns:
             datetime объект или None
         """
         if not dt_string:
             return None
-        
+
         try:
             # Формат: 2024-01-15T10:30:00 или 2024-01-15T10:30:00Z
             dt_string = dt_string.replace("Z", "+00:00")
@@ -311,6 +322,84 @@ class ClusterManager:
         except (ValueError, TypeError):
             logger.debug(f"Не удалось распарсить дату: {dt_string}")
             return None
+
+    def get_server_processes(self, cluster_id: str) -> List[Dict[str, Any]]:
+        """
+        Получение списка рабочих процессов (rphost) кластера через process list
+
+        Возвращаемые поля из rac process list:
+        - process: UUID процесса
+        - host: хост сервера
+        - port: порт процесса
+        - pid: PID процесса
+        - started-at: время запуска
+        - memory-size: размер памяти (байты)
+        - connections: количество подключений
+        - running: статус (yes/no)
+        - use: используется (used/unused)
+
+        Args:
+            cluster_id: ID кластера
+
+        Returns:
+            Список рабочих процессов
+        """
+        logger.debug(f"Getting server processes for cluster {cluster_id}")
+
+        # Формируем команду: rac.exe process --cluster=cluster_id list host:port
+        cmd = [
+            str(self.settings.rac_path),
+            "process",
+            f"--cluster={cluster_id}",
+            "list",
+        ]
+
+        # Добавляем аутентификацию если есть
+        if self.settings.user_name:
+            cmd.append(f"--cluster-user={self.settings.user_name}")
+        if self.settings.user_pass:
+            cmd.append(f"--cluster-pwd={self.settings.user_pass}")
+
+        cmd.append(f"{self.settings.rac_host}:{self.settings.rac_port}")
+
+        result = self.rac.execute(cmd)
+
+        if not result or result["returncode"] != 0 or not result["stdout"]:
+            logger.debug(f"Process list returned empty or error for cluster {cluster_id}")
+            return []
+
+        # Парсим вывод
+        processes_data = parse_rac_output(result["stdout"])
+        processes = []
+
+        for data in processes_data:
+            try:
+                # memory-size в байтах
+                memory_raw = data.get("memory-size", 0)
+                try:
+                    memory_size = int(memory_raw) if memory_raw else 0
+                except (ValueError, TypeError):
+                    memory_size = 0
+
+                process = {
+                    "process": data.get("process", ""),
+                    "host": data.get("host", ""),
+                    "port": int(data.get("port", 0)) if data.get("port") else 0,
+                    "pid": int(data.get("pid", 0)) if data.get("pid") else 0,
+                    "started_at": self._parse_datetime(data.get("started-at", "")),
+                    "memory_size": memory_size,  # в байтах
+                    "memory_size_kb": memory_size // 1024,  # конвертируем в КБ
+                    "connections": int(data.get("connections", 0)) if data.get("connections") else 0,
+                    "running": data.get("running", "no") == "yes",
+                    "use": data.get("use", ""),
+                }
+                processes.append(process)
+
+            except Exception as e:
+                logger.error(f"Ошибка парсинга рабочего процесса: {e}")
+
+        logger.debug(f"Found {len(processes)} server processes for cluster {cluster_id}")
+        return processes
 
     def get_cluster_metrics(self, cluster_id: str) -> Optional[Dict]:
         """
@@ -429,20 +518,135 @@ class ClusterManager:
 
         active_jobs = sum(1 for j in jobs if is_job_active(j))
 
+        # Метрика "Фоновые задания" — фильтрация по типу "длительные" и проверка >30 мин
+        # Длительные задания: BackgroundJob и SystemBackgroundJob (исключая JobScheduler)
+        # Задание считается "зависшим" если оно активно (hibernate=no) и выполняется >30 минут
+        
+        def is_long_running_job(job: Dict) -> bool:
+            """Проверка: является ли задание длительным (фоновое или системное)"""
+            app_id = job.get("app-id", "")
+            return app_id in ["BackgroundJob", "SystemBackgroundJob"]
+        
+        def get_job_duration_minutes(job: Dict) -> float:
+            """Расчет времени выполнения задания в минутах"""
+            started_at_str = job.get("started-at", "")
+            if not started_at_str:
+                return 0.0
+            
+            try:
+                started_at = datetime.fromisoformat(started_at_str.replace("Z", "+00:00"))
+                now = datetime.now(started_at.tzinfo) if started_at.tzinfo else datetime.now()
+                duration = now - started_at
+                return duration.total_seconds() / 60.0
+            except (ValueError, TypeError):
+                return 0.0
+        
+        def is_job_stuck(job: Dict, threshold_minutes: int = 30) -> bool:
+            """
+            Проверка: задание висит дольше порога
+            Критерии:
+            1. Задание длительное (BackgroundJob или SystemBackgroundJob)
+            2. Задание активное (hibernate=no)
+            3. Время выполнения > threshold_minutes
+            """
+            if not is_long_running_job(job):
+                return False
+            
+            hibernate = job.get("hibernate", "no")
+            if hibernate != "no":
+                return False  # Задание в спящем режиме — не зависло
+            
+            duration = get_job_duration_minutes(job)
+            return duration > threshold_minutes
+        
+        # Подсчет метрик по фоновым заданиям
+        long_running_jobs = sum(1 for j in jobs if is_long_running_job(j))
+        stuck_jobs = sum(1 for j in jobs if is_job_stuck(j, threshold_minutes=30))
+        
+        # Получаем максимальное время выполнения среди активных заданий для отладки
+        max_job_duration = 0.0
+        for j in jobs:
+            if is_job_active(j):
+                duration = get_job_duration_minutes(j)
+                if duration > max_job_duration:
+                    max_job_duration = duration
+
+        # Получаем рабочие процессы для расчета памяти и времени рестарта
+        processes = self.get_server_processes(cluster_id)
+
         # Получаем лимиты сессий и памяти с рабочих серверов
         total_servers_count = len(working_servers)
         working_servers_count = sum(1 for s in working_servers if s.status == "working")
+
+        # Расчет лимита сессий
+        # Архитектура 1С: connections-limit — это лимит НА ПРОЦЕСС rphost
+        # Общий лимит кластера = Σ(connections-limit × количество процессов на сервере)
+        # 
+        # ВАЖНО: НЕ использовать фиксированное значение!
+        # Лимит берется из параметров рабочего сервера:
+        # - connections-limit: максимальное число подключений на один процесс
+        # - processes_count: количество запущенных процессов rphost на сервере
+        # 
+        # Пример: если connections-limit=128 и запущено 2 процесса, лимит сервера = 256
+        
+        # Считаем количество процессов на каждом хосте
+        from collections import defaultdict
+        processes_per_host = defaultdict(int)
+        for p in processes:
+            host = p.get("host", "")
+            if host:
+                processes_per_host[host] += 1
+        
+        # Обновляем processes_count в working_servers
+        for server in working_servers:
+            server.processes_count = processes_per_host.get(server.host, 1)
         
         # Суммарный лимит сессий по всем рабочим серверам
-        total_server_session_limit = sum(s.limit_connections for s in working_servers)
+        # Формула: Σ(connections-limit × processes_count)
+        total_server_session_limit = sum(
+            s.limit_connections * getattr(s, 'processes_count', 1) 
+            for s in working_servers
+        )
         
-        # Суммарная память и лимит памяти
-        total_server_memory_used = sum(s.memory_used for s in working_servers)
+        logger.debug(
+            f"Session limit calculation: "
+            f"servers={len(working_servers)}, "
+            f"limit={total_server_session_limit}, "
+            f"processes_per_host={dict(processes_per_host)}"
+        )
+
+        # Расчет памяти по рабочим процессам (process list)
+        # memory-size из process list — это фактическое использование памяти процессом rphost
+        total_server_memory_used = sum(p.get("memory_size_kb", 0) for p in processes)
+        
+        # Лимит памяти берем из working servers (memory-limit)
+        # Если memory-limit = 0, значит лимит не задан
         total_server_memory_limit = sum(s.memory_limit for s in working_servers)
+
+        # Расчет времени работы по процессам
+        # Используем min started-at среди процессов на каждом хосте как время запуска сервера
+        # Группируем процессы по хостам
+        from collections import defaultdict
+        processes_by_host = defaultdict(list)
+        for p in processes:
+            if p.get("host"):
+                processes_by_host[p["host"]].append(p)
         
+        # Находим минимальное время запуска для каждого хоста
+        min_start_times = {}
+        for host, procs in processes_by_host.items():
+            started_procs = [p for p in procs if p.get("started_at")]
+            if started_procs:
+                min_start_times[host] = min(p["started_at"] for p in started_procs)
+
+        # Обновляем start_time в working_servers на основе процессов
+        for server in working_servers:
+            if server.host in min_start_times:
+                server.start_time = min_start_times[server.host]
+
         # Количество серверов, перезапущенных недавно (<5 мин)
         servers_restarted_recently = sum(
-            1 for s in working_servers 
+            1 for s in working_servers
             if s.is_recently_restarted(threshold_minutes=5)
         )
 
@@ -452,9 +656,19 @@ class ClusterManager:
             session_percent = round((total_sessions / total_server_session_limit) * 100, 2)
 
         # Рассчитываем процент использования памяти
+        # Архитектура: память считается по процессам rphost на хосте рабочего сервера
+        # Лимит задается в настройках рабочего сервера в консоли кластера
+        # Если лимит не задан (memory-limit=0), используем абсолютное значение
         server_memory_percent = 0.0
-        if total_server_memory_limit > 0:
+        memory_limit_set = total_server_memory_limit > 0
+        
+        if memory_limit_set:
+            # Лимит задан — считаем процент
             server_memory_percent = round((total_server_memory_used / total_server_memory_limit) * 100, 2)
+        else:
+            # Лимит не задан — выводим 0, но добавляем флаг и абсолютное значение
+            # Для Zabbix настраиваем триггер по абсолютному значению (например, >10 ГБ)
+            server_memory_percent = 0.0
 
         return {
             "cluster": {
@@ -471,10 +685,15 @@ class ClusterManager:
                 "session_percent": session_percent,
                 "working_servers": working_servers_count,
                 "total_servers": total_servers_count,
-                "server_memory_used": total_server_memory_used,
-                "server_memory_limit": total_server_memory_limit,
-                "server_memory_percent": server_memory_percent,
+                "server_memory_used": total_server_memory_used,  # КБ — фактическое использование
+                "server_memory_limit": total_server_memory_limit,  # КБ — лимит (0 если не задан)
+                "server_memory_percent": server_memory_percent,  # % если лимит задан, иначе 0
                 "servers_restarted_recently": servers_restarted_recently,
+                "memory_limit_set": 1 if memory_limit_set else 0,  # Флаг: задан ли лимит памяти
+                # Метрики по фоновым заданиям
+                "long_running_jobs": long_running_jobs,  # Количество длительных заданий
+                "stuck_jobs": stuck_jobs,  # Задания, висящие >30 мин
+                "max_job_duration": round(max_job_duration, 2),  # Максимальное время выполнения (мин)
             },
             "working_servers": [
                 {
@@ -487,11 +706,28 @@ class ClusterManager:
                     "memory_percent": s.memory_percent,
                     "current_connections": s.current_connections,
                     "limit_connections": s.limit_connections,
+                    "processes_count": s.processes_count,  # Количество процессов rphost
+                    "session_limit": s.limit_connections * s.processes_count,  # Лимит сервера
                     "session_percent": s.session_percent,
                     "start_time": s.start_time.isoformat() if s.start_time else None,
                     "uptime_minutes": s.uptime_minutes,
                     "is_recently_restarted": s.is_recently_restarted(),
                 }
                 for s in working_servers
+            ],
+            "processes": [
+                {
+                    "process": p.get("process", ""),
+                    "host": p.get("host", ""),
+                    "port": p.get("port", 0),
+                    "pid": p.get("pid", 0),
+                    "started_at": p.get("started_at", "").isoformat() if p.get("started_at") else None,
+                    "memory_size": p.get("memory_size", 0),
+                    "memory_size_kb": p.get("memory_size_kb", 0),
+                    "connections": p.get("connections", 0),
+                    "running": p.get("running", False),
+                    "use": p.get("use", ""),
+                }
+                for p in processes
             ],
         }
