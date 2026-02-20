@@ -355,7 +355,7 @@ class ClusterManager:
         # Пороги по типам сессий:
         # - Designer (Конфигуратор): 10 минут
         # - Остальные: 5 минут
-        from ...monitoring.session.filters import is_session_active
+        from ...monitoring.session.filters import is_session_active as is_session_active_strict
 
         def get_session_threshold(session: Dict) -> int:
             """Возвращает порог last-active-at в минутах по типу сессии"""
@@ -366,11 +366,11 @@ class ClusterManager:
             else:
                 return 5   # Остальные — 5 минут
 
-        def is_session_active_custom(session: Dict) -> bool:
+        def _is_session_active_with_threshold(session: Dict) -> bool:
             """
             Проверка активности сессии:
             1. Если last-active-at <= порог → активна
-            2. Если last-active-at > порог → проверяем hibernate, calls, bytes
+            2. Если last-active-at > порог → применяем строгие фильтры (hibernate, calls, bytes)
             """
             threshold = get_session_threshold(session)
 
@@ -391,7 +391,7 @@ class ClusterManager:
                     return True
 
                 # Если last-active-at старше порога → применяем строгие фильтры
-                return is_session_active(
+                return is_session_active_strict(
                     session,
                     threshold_minutes=threshold,
                     check_activity=True,
@@ -403,7 +403,7 @@ class ClusterManager:
             except (ValueError, TypeError):
                 return False
 
-        active_sessions = sum(1 for s in sessions if is_session_active_custom(s))
+        active_sessions = sum(1 for s in sessions if _is_session_active_with_threshold(s))
 
         total_jobs = len(jobs)
 
@@ -490,7 +490,7 @@ class ClusterManager:
                     "session_percent": s.session_percent,
                     "start_time": s.start_time.isoformat() if s.start_time else None,
                     "uptime_minutes": s.uptime_minutes,
-                    "is_recently_restarted": s.is_recently_restarted,
+                    "is_recently_restarted": s.is_recently_restarted(),
                 }
                 for s in working_servers
             ],

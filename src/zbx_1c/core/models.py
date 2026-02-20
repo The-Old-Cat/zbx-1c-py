@@ -141,7 +141,6 @@ class WorkingServerInfo(BaseModel):
         delta = now - start
         return int(delta.total_seconds() / 60)
 
-    @property
     def is_recently_restarted(self, threshold_minutes: int = 5) -> bool:
         """Проверка: сервер был перезапущен недавно (< threshold_minutes минут)"""
         uptime = self.uptime_minutes
