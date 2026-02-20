@@ -99,6 +99,65 @@ class InfobaseInfo(BaseModel):
     descr: str = ""
 
 
+class WorkingServerInfo(BaseModel):
+    """Информация о рабочем сервере 1С"""
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    name: str = ""
+    host: str
+    port: int
+    status: str = "unknown"  # working / not-working
+    memory_used: int = Field(default=0, alias="memory-used")  # в КБ
+    memory_limit: int = Field(default=0, alias="memory-limit")  # в КБ
+    start_time: Optional[datetime] = Field(None, alias="start-time")
+    current_connections: int = Field(default=0, alias="current-connections")
+    limit_connections: int = Field(default=0, alias="limit-connections")
+    cluster_id: Optional[UUID] = Field(None, alias="cluster")
+
+    @property
+    def memory_percent(self) -> float:
+        """Процент использования памяти"""
+        if self.memory_limit > 0:
+            return round((self.memory_used / self.memory_limit) * 100, 2)
+        return 0.0
+
+    @property
+    def session_percent(self) -> float:
+        """Процент использования сессий"""
+        if self.limit_connections > 0:
+            return round((self.current_connections / self.limit_connections) * 100, 2)
+        return 0.0
+
+    @property
+    def uptime_minutes(self) -> Optional[int]:
+        """Время работы сервера в минутах"""
+        if not self.start_time:
+            return None
+        now = datetime.now()
+        start = self.start_time
+        if start.tzinfo:
+            now = now.replace(tzinfo=start.tzinfo)
+        delta = now - start
+        return int(delta.total_seconds() / 60)
+
+    @property
+    def is_recently_restarted(self, threshold_minutes: int = 5) -> bool:
+        """Проверка: сервер был перезапущен недавно (< threshold_minutes минут)"""
+        uptime = self.uptime_minutes
+        return uptime is not None and uptime < threshold_minutes
+
+    def to_lld(self) -> Dict[str, Any]:
+        """Формат для Zabbix LLD"""
+        return {
+            "{#SERVER.NAME}": self.name,
+            "{#SERVER.HOST}": self.host,
+            "{#SERVER.PORT}": self.port,
+            "{#SERVER.STATUS}": self.status,
+            "{#SERVER.CLUSTER.ID}": str(self.cluster_id) if self.cluster_id else "",
+        }
+
+
 class ClusterMetrics(BaseModel):
     """Метрики кластера"""
 
@@ -111,7 +170,21 @@ class ClusterMetrics(BaseModel):
     total_jobs: int
     active_jobs: int
     total_infobases: int = 0
+    # Метрики рабочих серверов
+    total_servers: int = 0
+    working_servers: int = 0
+    total_server_memory_used: int = 0  # суммарная память всех серверов (КБ)
+    total_server_memory_limit: int = 0  # суммарный лимит памяти (КБ)
+    total_server_session_limit: int = 0  # суммарный лимит сессий по всем серверам
+    servers_restarted_recently: int = 0  # количество серверов, перезапущенных <5 мин назад
     timestamp: datetime = Field(default_factory=datetime.now)
+
+    @property
+    def server_memory_percent(self) -> float:
+        """Процент использования памяти всеми серверами"""
+        if self.total_server_memory_limit > 0:
+            return round((self.total_server_memory_used / self.total_server_memory_limit) * 100, 2)
+        return 0.0
 
     # Для Zabbix trapper
     def to_zabbix(self) -> List[Dict[str, Any]]:
@@ -121,4 +194,8 @@ class ClusterMetrics(BaseModel):
             {"key": "zbx1cpy.cluster.total_jobs", "value": self.total_jobs},
             {"key": "zbx1cpy.cluster.active_jobs", "value": self.active_jobs},
             {"key": "zbx1cpy.cluster.total_infobases", "value": self.total_infobases},
+            {"key": "zbx1cpy.cluster.total_servers", "value": self.total_servers},
+            {"key": "zbx1cpy.cluster.working_servers", "value": self.working_servers},
+            {"key": "zbx1cpy.cluster.server_memory_percent", "value": self.server_memory_percent},
+            {"key": "zbx1cpy.cluster.servers_restarted_recently", "value": self.servers_restarted_recently},
         ]

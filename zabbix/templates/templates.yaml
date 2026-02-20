@@ -244,6 +244,64 @@ zabbix_export:
               tags:
                 - tag: App
                   value: 1С
+            - uuid: d4e8f2a1b5c64738a9d0e1f2a3b4c5d6
+              name: "1C: Server memory percent [{#CLUSTER.NAME}]"
+              type: DEPENDENT
+              key: "zbx1cpy.cluster.server_memory_percent[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              units: "%"
+              description: "Процент использования памяти всеми серверами кластера."
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.server_memory_percent
+              master_item:
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+              tags:
+                - tag: App
+                  value: 1С
+              trigger_prototypes:
+                - uuid: e5f9a3b2c6d74849b0e1f2a3b4c5d6e7
+                  expression: "min(/1C Enterprise Monitoring/zbx1cpy.cluster.server_memory_percent[{#CLUSTER.ID}],5m) > 90"
+                  name: "1C: Cluster {#CLUSTER.NAME} server memory usage > 90%"
+                  opdata: "Current memory usage: {ITEM.LASTVALUE1}%"
+                  priority: AVERAGE
+                  description: |
+                    Срабатывает при превышении 90% использования памяти серверами кластера.
+                    Необходима проверка распределения памяти.
+                  tags:
+                    - tag: App
+                      value: 1С
+            - uuid: f6a0b4c3d7e85950c1f2a3b4c5d6e7f8
+              name: "1C: Servers restarted recently [{#CLUSTER.NAME}]"
+              type: DEPENDENT
+              key: "zbx1cpy.cluster.servers_restarted_recently[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              units: servers
+              description: "Количество серверов, перезапущенных за последние 5 минут."
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.servers_restarted_recently
+              master_item:
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+              tags:
+                - tag: App
+                  value: 1С
+              trigger_prototypes:
+                - uuid: a7b1c5d4e8f96061d2a3b4c5d6e7f8a9
+                  expression: "last(/1C Enterprise Monitoring/zbx1cpy.cluster.servers_restarted_recently[{#CLUSTER.ID}])>0"
+                  name: "1C: Cluster {#CLUSTER.NAME} has servers restarted recently"
+                  opdata: "Servers restarted: {ITEM.LASTVALUE1}"
+                  priority: INFO
+                  description: |
+                    Срабатывает, если один или более серверов кластера были перезапущены
+                    за последние 5 минут. Может указывать на нестабильность.
+                  tags:
+                    - tag: App
+                      value: 1С
             - uuid: 08da3de1ef38415faa8d44d33b5e3f51
               name: "1C: Cluster Metrics [{#CLUSTER.NAME}]"
               key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
