@@ -201,6 +201,31 @@ def parse_jobs(output: str) -> List[Dict[str, Any]]:
     return parse_rac_output(output)
 
 
+def parse_working_servers(output: str) -> List[Dict[str, Any]]:
+    """
+    Парсинг вывода server list
+    
+    Возвращаемые поля из rac server list:
+    - name: имя сервера
+    - host: хост рабочего сервера
+    - port: порт рабочего сервера
+    - status: статус (working/not-working)
+    - memory-used: используемая память (КБ)
+    - memory-limit: лимит памяти (КБ)
+    - start-time: время запуска сервера
+    - current-connections: текущее количество сессий
+    - limit-connections: лимит сессий на сервере
+    - cluster: ID кластера
+    
+    Args:
+        output: Вывод команды rac server list
+        
+    Returns:
+        Список словарей с данными рабочих серверов
+    """
+    return parse_rac_output(output)
+
+
 def format_lld_data(clusters: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Форматирование данных для Zabbix LLD
