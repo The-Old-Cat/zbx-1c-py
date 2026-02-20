@@ -100,7 +100,14 @@ class InfobaseInfo(BaseModel):
 
 
 class WorkingServerInfo(BaseModel):
-    """Информация о рабочем сервере 1С"""
+    """Информация о рабочем сервере 1С
+    
+    Архитектура:
+    - Рабочий сервер — узел с агентом ragent (хост)
+    - На сервере запускается N рабочих процессов rphost.exe
+    - connections-limit — лимит сессий НА ОДИН процесс
+    - Общий лимит сервера = connections-limit × processes_count
+    """
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -114,6 +121,10 @@ class WorkingServerInfo(BaseModel):
     current_connections: int = Field(default=0, alias="current-connections")
     limit_connections: int = Field(default=0, alias="limit-connections")
     cluster_id: Optional[UUID] = Field(None, alias="cluster")
+    
+    # Количество рабочих процессов на сервере (rphost)
+    # Используется для расчета общего лимита сессий
+    processes_count: int = 1
 
     @property
     def memory_percent(self) -> float:
