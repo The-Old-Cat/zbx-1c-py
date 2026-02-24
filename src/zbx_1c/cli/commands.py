@@ -499,6 +499,67 @@ def get_cluster_status(cluster_id: str, config: str):
         sys.exit(0)
 
 
+@cli.command("licenses")
+@click.argument("cluster_id", required=False)
+@click.option("--config", "-c", help="Path to config file", default=".env")
+def get_licenses(cluster_id: Optional[str], config: str):
+    """
+    Получение информации о лицензиях 1С
+
+    Если cluster_id не указан, возвращает лицензии для сервера по умолчанию
+    """
+    try:
+        settings = load_settings(config)
+
+        from ..monitoring.license.manager import LicenseManager
+
+        manager = LicenseManager(settings)
+
+        if cluster_id:
+            cluster_id = cluster_id.strip("[]\"'")
+            # Для совместимости возвращаем в формате metrics
+            stats = manager.get_license_stats(use_cache=False)
+            result = {
+                "cluster": {"id": cluster_id},
+                "metrics": {
+                    "license_type": stats.license_type,
+                    "license_total": stats.total_licenses,
+                    "license_used": stats.used_licenses,
+                    "license_free": stats.free_licenses,
+                    "license_usage_percent": stats.usage_percent,
+                },
+            }
+            safe_output(result, indent=2, default=str)
+        else:
+            # Лицензии без привязки к кластеру
+            stats = manager.get_license_stats(use_cache=False)
+            result = {
+                "license_type": stats.license_type,
+                "host": stats.host,
+                "total": stats.total_licenses,
+                "used": stats.used_licenses,
+                "free": stats.free_licenses,
+                "usage_percent": stats.usage_percent,
+                "licenses": [
+                    {
+                        "type": lic.license_type,
+                        "total": lic.total,
+                        "used": lic.used,
+                        "free": lic.free,
+                        "series": lic.series,
+                        "description": lic.description,
+                    }
+                    for lic in stats.licenses
+                ],
+            }
+            safe_output(result, indent=2, default=str)
+
+    except Exception as e:
+        logger.error(f"Failed to get licenses: {e}")
+        safe_output({"error": str(e)}, indent=2)
+        sys.exit(1)
+
+
 @cli.command("test")
 @click.option("--config", "-c", help="Path to config file", default=".env")
 def test_connection(config: str):

@@ -349,6 +349,120 @@ zabbix_export:
               tags:
                 - tag: App
                   value: 1С
+            - uuid: a1b2c3d4e5f64789a0b1c2d3e4f5a6b7
+              name: "1C: License type [{#CLUSTER.NAME}]"
+              type: DEPENDENT
+              key: "zbx1cpy.license.type[{#CLUSTER.ID}]"
+              delay: "0"
+              value_type: CHAR
+              trends: "0"
+              description: |
+                Тип лицензирования 1С:
+                - server: сервер лицензирования (удалённый или локальный)
+                - local: локальные лицензии (на этом сервере)
+                - hasp: аппаратные ключи HASP (Sentinel)
+                - mixed: смешанный тип
+                - unknown: не определён
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.license_type
+              master_item:
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+              tags:
+                - tag: App
+                  value: 1С
+            - uuid: b2c3d4e5f6a74890b1c2d3e4f5a6b7c8
+              name: "1C: License total [{#CLUSTER.NAME}]"
+              type: DEPENDENT
+              key: "zbx1cpy.license.total[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              units: licenses
+              description: "Общее количество доступных лицензий 1С."
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.license_total
+              master_item:
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+              tags:
+                - tag: App
+                  value: 1С
+            - uuid: c3d4e5f6a7b84901c2d3e4f5a6b7c8d9
+              name: "1C: License used [{#CLUSTER.NAME}]"
+              type: DEPENDENT
+              key: "zbx1cpy.license.used[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              units: licenses
+              description: "Количество используемых лицензий 1С."
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.license_used
+              master_item:
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+              tags:
+                - tag: App
+                  value: 1С
+            - uuid: d4e5f6a7b8c94a02d3e4f5a6b7c8d9e0
+              name: "1C: License free [{#CLUSTER.NAME}]"
+              type: DEPENDENT
+              key: "zbx1cpy.license.free[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              units: licenses
+              description: "Количество свободных лицензий 1С."
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.license_free
+              master_item:
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+              tags:
+                - tag: App
+                  value: 1С
+            - uuid: e5f6a7b8c9d04b03e4f5a6b7c8d9e0f1
+              name: "1C: License usage percent [{#CLUSTER.NAME}]"
+              type: DEPENDENT
+              key: "zbx1cpy.license.usage_percent[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              units: "%"
+              description: "Процент использования лицензий 1С."
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.license_usage_percent
+              master_item:
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+              tags:
+                - tag: App
+                  value: 1С
+              trigger_prototypes:
+                - uuid: f6a7b8c9d0e14c04f5a6b7c8d9e0f1a2
+                  expression: "min(/1C Enterprise Monitoring/zbx1cpy.license.usage_percent[{#CLUSTER.ID}],5m) > 90"
+                  name: "1C: License usage on cluster {#CLUSTER.NAME} > 90%"
+                  opdata: "Current usage: {ITEM.LASTVALUE1}%"
+                  priority: HIGH
+                  description: |
+                    Срабатывает при превышении 90% использования лицензий.
+                    Требуется проверка количества свободных лицензий и нагрузки.
+                  tags:
+                    - tag: App
+                      value: 1С
+                - uuid: a7b8c9d0e1f24d05a6b7c8d9e0f1a2b3
+                  expression: "last(/1C Enterprise Monitoring/zbx1cpy.license.free[{#CLUSTER.ID}])=0"
+                  name: "1C: No free licenses on cluster {#CLUSTER.NAME}"
+                  opdata: "Free licenses: {ITEM.LASTVALUE1}"
+                  priority: DISASTER
+                  description: |
+                    Все лицензии исчерпаны. Новые пользователи не смогут подключиться.
+                    Требуется немедленное вмешательство.
+                  tags:
+                    - tag: App
+                      value: 1С
             - uuid: 08da3de1ef38415faa8d44d33b5e3f51
               name: "1C: Cluster Metrics [{#CLUSTER.NAME}]"
               key: "zbx1cpy.metrics[{#CLUSTER.ID}]"

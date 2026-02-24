@@ -57,17 +57,55 @@ UserParameter=zbx1cpy.clusters.discovery,cd /d "{project_root}" && "{python_path
 # Статус кластера: available | unavailable | unknown
 UserParameter=zbx1cpy.cluster.status[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c status $1
 
-# Метрики кластера (сессии, задания)
+# Метрики кластера (сессии, задания, лицензии)
 UserParameter=zbx1cpy.metrics[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c metrics $1
 
 # Метрики всех кластеров (для Master Item)
 UserParameter=zbx1cpy.metrics.all,cd /d "{project_root}" && "{python_path}" -m zbx_1c metrics
+
+# Лицензии (для Master Item)
+UserParameter=zbx1cpy.licenses.all,cd /d "{project_root}" && "{python_path}" -m zbx_1c licenses
+
+# Лицензии для конкретного кластера
+UserParameter=zbx1cpy.licenses[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c licenses $1
 
 # Проверка доступности RAS
 UserParameter=zbx1cpy.ras.check,cd /d "{project_root}" && "{python_path}" -m zbx_1c check-ras
 
 # Тестовый параметр
 UserParameter=zbx1cpy.test,cd /d "{project_root}" && "{python_path}" -m zbx_1c test
+
+# ===========================================
+# Прямые метрики (для старых версий Zabbix)
+# ===========================================
+
+# Сессии
+UserParameter=zbx1cpy.cluster.total_sessions[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('total_sessions',0))"
+
+UserParameter=zbx1cpy.cluster.active_sessions[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('active_sessions',0))"
+
+UserParameter=zbx1cpy.cluster.total_jobs[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('total_jobs',0))"
+
+UserParameter=zbx1cpy.cluster.active_bg_jobs[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('active_jobs',0))"
+
+UserParameter=zbx1cpy.cluster.session_limit[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('session_limit',0))"
+
+UserParameter=zbx1cpy.cluster.session_percent[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('session_percent',0))"
+
+UserParameter=zbx1cpy.cluster.working_servers[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('working_servers',0))"
+
+UserParameter=zbx1cpy.cluster.total_servers[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('total_servers',0))"
+
+# Лицензии
+UserParameter=zbx1cpy.license.type[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_type','unknown'))"
+
+UserParameter=zbx1cpy.license.total[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_total',0))"
+
+UserParameter=zbx1cpy.license.used[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_used',0))"
+
+UserParameter=zbx1cpy.license.free[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_free',0))"
+
+UserParameter=zbx1cpy.license.usage_percent[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_usage_percent',0.0))"
 """
 
 
@@ -85,17 +123,55 @@ UserParameter=zbx1cpy.clusters.discovery,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{p
 # Статус кластера: available | unavailable | unknown
 UserParameter=zbx1cpy.cluster.status[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c status $1
 
-# Метрики кластера (сессии, задания)
+# Метрики кластера (сессии, задания, лицензии)
 UserParameter=zbx1cpy.metrics[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c metrics $1
 
 # Метрики всех кластеров (для Master Item)
 UserParameter=zbx1cpy.metrics.all,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c metrics
+
+# Лицензии (для Master Item)
+UserParameter=zbx1cpy.licenses.all,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c licenses
+
+# Лицензии для конкретного кластера
+UserParameter=zbx1cpy.licenses[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c licenses $1
 
 # Проверка доступности RAS
 UserParameter=zbx1cpy.ras.check,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c check-ras
 
 # Тестовый параметр
 UserParameter=zbx1cpy.test,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c test
+
+# ===========================================
+# Прямые метрики (для старых версий Zabbix)
+# ===========================================
+
+# Сессии
+UserParameter=zbx1cpy.cluster.total_sessions[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('total_sessions',0))"
+
+UserParameter=zbx1cpy.cluster.active_sessions[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('active_sessions',0))"
+
+UserParameter=zbx1cpy.cluster.total_jobs[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('total_jobs',0))"
+
+UserParameter=zbx1cpy.cluster.active_bg_jobs[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('active_jobs',0))"
+
+UserParameter=zbx1cpy.cluster.session_limit[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('session_limit',0))"
+
+UserParameter=zbx1cpy.cluster.session_percent[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('session_percent',0))"
+
+UserParameter=zbx1cpy.cluster.working_servers[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('working_servers',0))"
+
+UserParameter=zbx1cpy.cluster.total_servers[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('total_servers',0))"
+
+# Лицензии
+UserParameter=zbx1cpy.license.type[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_type','unknown'))"
+
+UserParameter=zbx1cpy.license.total[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_total',0))"
+
+UserParameter=zbx1cpy.license.used[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_used',0))"
+
+UserParameter=zbx1cpy.license.free[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_free',0))"
+
+UserParameter=zbx1cpy.license.usage_percent[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_usage_percent',0.0))"
 """
 
 
