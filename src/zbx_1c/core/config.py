@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # Cache settings
     cache_ttl: int = Field(default=300, validation_alias="CACHE_TTL")
 
+    # Session limit (number of licenses, set manually)
+    session_limit: int = Field(default=100, validation_alias="SESSION_LIMIT")
+
     model_config = SettingsConfigDict(
         env_file=get_project_root() / ".env",
         env_file_encoding="utf-8",

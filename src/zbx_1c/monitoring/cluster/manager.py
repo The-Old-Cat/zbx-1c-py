@@ -426,7 +426,7 @@ class ClusterManager:
         # Получаем сессии и задания
         sessions = self.get_sessions(cluster_id)
         jobs = self.get_jobs(cluster_id)
-        
+
         # Получаем рабочие серверы
         working_servers = self.get_working_servers(cluster_id)
 
@@ -600,19 +600,14 @@ class ClusterManager:
         # Обновляем processes_count в working_servers
         for server in working_servers:
             server.processes_count = processes_per_host.get(server.host, 1)
-        
-        # Суммарный лимит сессий по всем рабочим серверам
-        # Формула: Σ(connections-limit × processes_count)
-        total_server_session_limit = sum(
-            s.limit_connections * getattr(s, 'processes_count', 1) 
-            for s in working_servers
-        )
-        
+
+        # Лимит сессий берется из настроек (SESSION_LIMIT в .env)
+        # Устанавливается вручную в соответствии с количеством лицензий
+        total_server_session_limit = self.settings.session_limit
+
         logger.debug(
-            f"Session limit calculation: "
-            f"servers={len(working_servers)}, "
-            f"limit={total_server_session_limit}, "
-            f"processes_per_host={dict(processes_per_host)}"
+            f"Session limit from settings: "
+            f"limit={total_server_session_limit}"
         )
 
         # Расчет памяти по рабочим процессам (process list)

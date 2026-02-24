@@ -2,7 +2,7 @@
 Менеджер мониторинга 1С:Предприятия для Zabbix
 
 Критически важные моменты:
-- Лимит сессий: 'Количество соединений на процесс' × 'Количество рабочих процессов'
+- Лимит сессий задается в .env через SESSION_LIMIT (количество лицензий)
 - Память: мониторить на уровне ОС для каждого рабочего сервера
 - Центральный сервер: svp-pinavto01 — при падении кластер недоступен
 - Диапазон портов: 1560-1591 для рабочих процессов (важно для firewall)
@@ -11,6 +11,7 @@
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 import logging
+import os
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -18,9 +19,8 @@ logger = logging.getLogger(__name__)
 
 WARNINGS = {
     "session_limit": """
-        Лимит сессий берется из параметров рабочего сервера: 
-        'Количество соединений на процесс' × 'Количество рабочих процессов'.
-        НЕ использовать фиксированное значение!
+        Лимит сессий берется из настроек (.env):
+        SESSION_LIMIT = количество лицензий (устанавливается вручную).
     """,
     "memory_monitoring": """
         Память нужно мониторить на уровне ОС для каждого рабочего сервера,
@@ -48,54 +48,32 @@ class ClusterMetricsCollector:
     - Память считается по процессам rphost (фактическое использование)
     """
     
-    def __init__(self, rac_host: str, rac_port: int, rac_path: str, 
+    def __init__(self, rac_host: str, rac_port: int, rac_path: str,
                  cluster_user: Optional[str] = None, cluster_pwd: Optional[str] = None):
         self.rac_host = rac_host
         self.rac_port = rac_port
         self.rac_path = rac_path
         self.cluster_user = cluster_user
         self.cluster_pwd = cluster_pwd
-        
+
         # Критически важные сервера
         self.central_servers = ["svp-pinavto01", "srv-pinavto01"]
-        
+
         # Диапазон портов рабочих процессов
         self.process_port_range = (1560, 1591)
+
+        # Лимит сессий из .env (SESSION_LIMIT)
+        self.session_limit = int(os.getenv("SESSION_LIMIT", 100))
     
     def get_session_limit(self, working_servers: List[Dict]) -> int:
         """
-        Расчет лимита сессий
-        
-        Архитектура 1С:
-        - Каждый рабочий сервер имеет параметр 'connections-limit' (лимит на процесс)
-        - На сервере запускается N рабочих процессов (rphost)
-        - Общий лимит = connections-limit × количество процессов
-        
-        Примечание: connections-limit из rac server list — это лимит НА ПРОЦЕСС,
-        а не на весь сервер!
+        Возвращает лимит сессий из настроек (.env)
+
+        Лимит устанавливается вручную в SESSION_LIMIT
+        в соответствии с количеством лицензий 1С
         """
-        total_limit = 0
-        
-        for server in working_servers:
-            # Лимит на один процесс
-            limit_per_process = server.get("connections-limit", 0)
-            
-            # Количество процессов на сервере (получаем из process list)
-            processes_count = server.get("processes_count", 1)
-            
-            # Общий лимит для этого сервера
-            server_limit = limit_per_process * processes_count
-            total_limit += server_limit
-            
-            logger.debug(
-                f"Server {server.get('name', 'unknown')}: "
-                f"limit_per_process={limit_per_process}, "
-                f"processes={processes_count}, "
-                f"total={server_limit}"
-            )
-        
-        logger.info(f"Total session limit: {total_limit}")
-        return total_limit
+        logger.info(f"Session limit from .env: {self.session_limit}")
+        return self.session_limit
     
     def get_memory_usage(self, processes: List[Dict]) -> Dict[str, Any]:
         """
@@ -189,32 +167,32 @@ class ClusterMetricsCollector:
             "warning": WARNINGS["port_range"]
         }
     
-    def collect_metrics(self, working_servers: List[Dict], processes: List[Dict], 
+    def collect_metrics(self, working_servers: List[Dict], processes: List[Dict],
                        sessions: List[Dict]) -> Dict[str, Any]:
         """
         Сбор всех метрик кластера
-        
+
         Возвращает:
-        - session_limit: расчетный лимит сессий
+        - session_limit: лимит сессий из .env
         - session_usage: процент использования
         - memory: информация по памяти
         - central_server: статус центральных серверов
         - port_range: информация по портам
         """
-        # Расчет лимита сессий
+        # Лимит сессий из .env
         session_limit = self.get_session_limit(working_servers)
         current_sessions = len(sessions)
         session_percent = round((current_sessions / session_limit * 100), 2) if session_limit > 0 else 0
-        
+
         # Использование памяти
         memory_info = self.get_memory_usage(processes)
-        
+
         # Статус центральных серверов
         central_status = self.check_central_server_status(working_servers)
-        
+
         # Информация по портам
         port_info = self.get_port_range_info()
-        
+
         return {
             "timestamp": datetime.now().isoformat(),
             "sessions": {
@@ -238,12 +216,10 @@ def main():
         {
             "name": "Центральный сервер",
             "host": "srv-pinavto01",
-            "connections-limit": 256,
-            "processes_count": 2,  # Количество rphost
             "status": "working"
         }
     ]
-    
+
     processes = [
         {
             "host": "srv-pinavto01",
@@ -256,9 +232,9 @@ def main():
             "memory_size_kb": 785
         }
     ]
-    
+
     sessions = [{"session-id": i} for i in range(8)]
-    
+
     collector = ClusterMetricsCollector(
         rac_host="127.0.0.1",
         rac_port=1545,
@@ -266,9 +242,9 @@ def main():
         cluster_user="new_1cPin_KA",
         cluster_pwd="!Admin1c!159753"
     )
-    
+
     metrics = collector.collect_metrics(working_servers, processes, sessions)
-    
+
     print("\n" + "="*60)
     print("МЕТРИКИ КЛАСТЕРА 1С")
     print("="*60)
@@ -277,7 +253,7 @@ def main():
     print(f"Память: {metrics['memory']['total_memory_mb']} МБ")
     print(f"Рабочих серверов: {metrics['working_servers_count']}")
     print(f"Процессов: {metrics['processes_count']}")
-    print(f"Центральные сервера доступны: {metrics['central_server']['all_central_ok']}")
+    print(f"Центральные сервера доступны: {metrics['central_server'].get('all_central_available', 'N/A')}")
     print(f"Диапазон портов: {metrics['port_range']['range_start']}-{metrics['port_range']['range_end']}")
     print("="*60 + "\n")
 
