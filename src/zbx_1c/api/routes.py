@@ -17,13 +17,13 @@ async def get_clusters_discovery():
     try:
         settings = get_settings()
         manager = ClusterManager(settings)
-        clusters = manager.discover_clusters()
+        clusters: List[Dict[str, Any]] = manager.discover_clusters()
 
         # Форматируем для LLD с использованием to_lld()
         lld_data = {
             "data": [
                 (
-                    c.to_lld()
+                    c.to_lld()  # type: ignore[attr-defined]
                     if hasattr(c, "to_lld")
                     else {
                         "{#CLUSTER.ID}": c.get("id", ""),

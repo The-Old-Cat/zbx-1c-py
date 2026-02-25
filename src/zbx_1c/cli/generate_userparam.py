@@ -13,6 +13,7 @@ import platform
 import shutil
 import argparse
 import datetime
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -57,20 +58,25 @@ UserParameter=zbx1cpy.clusters.discovery,cd /d "{project_root}" && "{python_path
 # Статус кластера: available | unavailable | unknown
 UserParameter=zbx1cpy.cluster.status[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c status $1
 
-# Метрики кластера (сессии, задания, лицензии)
+# Метрики кластера (сессии, задания)
 UserParameter=zbx1cpy.metrics[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c metrics $1
 
 # Метрики всех кластеров (для Master Item)
 UserParameter=zbx1cpy.metrics.all,cd /d "{project_root}" && "{python_path}" -m zbx_1c metrics
 
-# Лицензии (для Master Item)
-UserParameter=zbx1cpy.licenses.all,cd /d "{project_root}" && "{python_path}" -m zbx_1c licenses
-
-# Лицензии для конкретного кластера
-UserParameter=zbx1cpy.licenses[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c licenses $1
-
 # Проверка доступности RAS
 UserParameter=zbx1cpy.ras.check,cd /d "{project_root}" && "{python_path}" -m zbx_1c check-ras
+
+# Память процессов 1С (КБ)
+UserParameter=zbx1cpy.memory.all,cd /d "{project_root}" && "{python_path}" -m zbx_1c memory
+
+UserParameter=zbx1cpy.memory.rphost,cd /d "{project_root}" && "{python_path}" -m zbx_1c memory | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('rphost',0))"
+
+UserParameter=zbx1cpy.memory.rmngr,cd /d "{project_root}" && "{python_path}" -m zbx_1c memory | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('rmngr',0))"
+
+UserParameter=zbx1cpy.memory.ragent,cd /d "{project_root}" && "{python_path}" -m zbx_1c memory | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('ragent',0))"
+
+UserParameter=zbx1cpy.memory.total,cd /d "{project_root}" && "{python_path}" -m zbx_1c memory | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('total',0))"
 
 # Тестовый параметр
 UserParameter=zbx1cpy.test,cd /d "{project_root}" && "{python_path}" -m zbx_1c test
@@ -95,17 +101,6 @@ UserParameter=zbx1cpy.cluster.session_percent[*],cd /d "{project_root}" && "{pyt
 UserParameter=zbx1cpy.cluster.working_servers[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('working_servers',0))"
 
 UserParameter=zbx1cpy.cluster.total_servers[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('total_servers',0))"
-
-# Лицензии
-UserParameter=zbx1cpy.license.type[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_type','unknown'))"
-
-UserParameter=zbx1cpy.license.total[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_total',0))"
-
-UserParameter=zbx1cpy.license.used[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_used',0))"
-
-UserParameter=zbx1cpy.license.free[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_free',0))"
-
-UserParameter=zbx1cpy.license.usage_percent[*],cd /d "{project_root}" && "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_usage_percent',0.0))"
 """
 
 
@@ -123,20 +118,25 @@ UserParameter=zbx1cpy.clusters.discovery,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{p
 # Статус кластера: available | unavailable | unknown
 UserParameter=zbx1cpy.cluster.status[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c status $1
 
-# Метрики кластера (сессии, задания, лицензии)
+# Метрики кластера (сессии, задания)
 UserParameter=zbx1cpy.metrics[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c metrics $1
 
 # Метрики всех кластеров (для Master Item)
 UserParameter=zbx1cpy.metrics.all,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c metrics
 
-# Лицензии (для Master Item)
-UserParameter=zbx1cpy.licenses.all,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c licenses
-
-# Лицензии для конкретного кластера
-UserParameter=zbx1cpy.licenses[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c licenses $1
-
 # Проверка доступности RAS
 UserParameter=zbx1cpy.ras.check,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c check-ras
+
+# Память процессов 1С (КБ)
+UserParameter=zbx1cpy.memory.all,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c memory
+
+UserParameter=zbx1cpy.memory.rphost,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c memory | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('rphost',0))"
+
+UserParameter=zbx1cpy.memory.rmngr,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c memory | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('rmngr',0))"
+
+UserParameter=zbx1cpy.memory.ragent,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c memory | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('ragent',0))"
+
+UserParameter=zbx1cpy.memory.total,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c memory | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('total',0))"
 
 # Тестовый параметр
 UserParameter=zbx1cpy.test,LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c test
@@ -161,17 +161,6 @@ UserParameter=zbx1cpy.cluster.session_percent[*],LANG=C.UTF-8 PYTHONIOENCODING=u
 UserParameter=zbx1cpy.cluster.working_servers[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('working_servers',0))"
 
 UserParameter=zbx1cpy.cluster.total_servers[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c metrics $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('total_servers',0))"
-
-# Лицензии
-UserParameter=zbx1cpy.license.type[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_type','unknown'))"
-
-UserParameter=zbx1cpy.license.total[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_total',0))"
-
-UserParameter=zbx1cpy.license.used[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_used',0))"
-
-UserParameter=zbx1cpy.license.free[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_free',0))"
-
-UserParameter=zbx1cpy.license.usage_percent[*],LANG=C.UTF-8 PYTHONIOENCODING=utf-8 "{python_path}" -m zbx_1c licenses $1 | "{python_path}" -c "import sys,json; d=json.load(sys.stdin); print(d.get('metrics',{{}}).get('license_usage_percent',0.0))"
 """
 
 
@@ -212,7 +201,7 @@ def detect_zabbix_agent_version() -> str:
             location_lower = location.lower()
             if "agent2" in location_lower or "agent 2" in location_lower:
                 return "agent2"
-            elif "agent" in location_lower:
+            if "agent" in location_lower:
                 return "agent"
 
     try:
@@ -337,16 +326,16 @@ def generate_config(
     safe_print(f"OS: {os_type.title()}")
     safe_print(f"Zabbix Agent: {agent_version}")
     safe_print(f"Python: {python_executable}")
-    safe_print(f"\nInstallation:")
+    safe_print("\nInstallation:")
     if os_type == "windows":
-        safe_print(f"   Copy to: C:\\Program Files\\Zabbix Agent 2\\zabbix_agent2.d\\")
-        safe_print(f"   Restart: Restart-Service zabbix-agent2")
+        safe_print("   Copy to: C:\\Program Files\\Zabbix Agent 2\\zabbix_agent2.d\\")
+        safe_print("   Restart: Restart-Service zabbix-agent2")
     else:
-        safe_print(f"   Copy to: /etc/zabbix/zabbix_agent2.d/")
-        safe_print(f"   Restart: sudo systemctl restart zabbix-agent2")
-    safe_print(f"\nCheck:")
-    safe_print(f"   zabbix_get -s <host> -k zbx1cpy.clusters.discovery")
-    safe_print(f"   zabbix_get -s <host> -k zbx1cpy.cluster.status[<cluster_id>]")
+        safe_print("   Copy to: /etc/zabbix/zabbix_agent2.d/")
+        safe_print("   Restart: sudo systemctl restart zabbix-agent2")
+    safe_print("\nCheck:")
+    safe_print("   zabbix_get -s <host> -k zbx1cpy.clusters.discovery")
+    safe_print("   zabbix_get -s <host> -k zbx1cpy.cluster.status[<cluster_id>]")
 
     return output_path
 
