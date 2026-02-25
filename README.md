@@ -194,12 +194,17 @@ CACHE_TTL=300
 zbx-1c <command> [options]           # Основная команда
 zbx-1c-check-ras                      # Проверка RAS
 zbx-1c-discovery                      # Обнаружение кластеров
+zbx-1c-clusters                       # Список кластеров
 zbx-1c-metrics [cluster_id]           # Метрики
+zbx-1c-status <cluster_id>            # Статус кластера
 zbx-1c-infobases <cluster_id>         # Информационные базы
 zbx-1c-sessions <cluster_id>          # Сессии
 zbx-1c-jobs <cluster_id>              # Фоновые задания
+zbx-1c-all <cluster_id>               # Вся информация о кластере
+zbx-1c-memory                         # Память процессов 1С
 zbx-1c-test                           # Тест подключения
 zbx-1c-monitor [cluster_id]           # Мониторинг (алиас metrics)
+zbx-1c-check-config                   # Проверка конфигурации
 ```
 
 **2. Как Python-модуль:**
@@ -220,12 +225,17 @@ uv run zbx-1c metrics f93863ed-3fdb-4e01-a74c-e112c81b053b
 # Отдельные entry points
 uv run zbx-1c-check-ras
 uv run zbx-1c-discovery
+uv run zbx-1c-clusters
 uv run zbx-1c-metrics [cluster_id]
+uv run zbx-1c-status <cluster_id>
 uv run zbx-1c-infobases <cluster_id>
 uv run zbx-1c-sessions <cluster_id>
 uv run zbx-1c-jobs <cluster_id>
+uv run zbx-1c-all <cluster_id>
+uv run zbx-1c-memory
 uv run zbx-1c-test
 uv run zbx-1c-monitor [cluster_id]
+uv run zbx-1c-check-config
 
 # С указанием конфигурации
 uv run zbx-1c-check-ras --config .env.prod
@@ -245,13 +255,14 @@ uv run zbx-1c metrics --config /path/to/.env
 | `check-ras` | `zbx-1c-check-ras` | Проверка доступности RAS сервиса | — |
 | `check-config` | `zbx-1c-check-config` | Проверка корректности конфигурации | — |
 | `discovery` | `zbx-1c-discovery` | Обнаружение кластеров для Zabbix LLD | — |
-| `clusters` | — | Список доступных кластеров | — |
+| `clusters` | `zbx-1c-clusters` | Список доступных кластеров | — |
 | `infobases` | `zbx-1c-infobases` | Получение информационных баз | `<cluster_id>` |
 | `sessions` | `zbx-1c-sessions` | Получение сессий кластера | `<cluster_id>` |
 | `jobs` | `zbx-1c-jobs` | Получение фоновых заданий | `<cluster_id>` |
 | `metrics` | `zbx-1c-metrics` | Получение метрик (для Zabbix) | `[cluster_id]` |
 | `status` | `zbx-1c-status` | Статус кластера | `<cluster_id>` |
-| `all` | — | Вся информация о кластере | `<cluster_id>` |
+| `all` | `zbx-1c-all` | Вся информация о кластере | `<cluster_id>` |
+| `memory` | `zbx-1c-memory` | Память процессов 1С (rphost, rmngr, ragent) | — |
 | `test` | `zbx-1c-test` | Тестирование подключения | — |
 | `monitor` | `zbx-1c-monitor` | Мониторинг (алиас `metrics`) | `[cluster_id]` |
 
@@ -1079,15 +1090,23 @@ uvicorn zbx_1c.api.main:app --reload --host 0.0.0.0 --port 8000
 | `zbx1cpy.cluster.active_sessions` | Количество **активных** сессий | **Двухуровневый критерий**:<br>1️⃣ **last-active-at ≤ порог** → активна<br>2️⃣ **last-active-at > порог** → строгая проверка:<br>   • `hibernate == "no"`<br>   • `calls-last-5min >= 1`<br>   • `bytes-last-5min >= 1024 байт`<br><br>**Пороги по типам**:<br>• `Designer` (Конфигуратор): **10 минут**<br>• Остальные: **5 минут** |
 | `zbx1cpy.cluster.total_jobs` | Общее количество фоновых заданий | Все задания из `rac session list` с `app-id` = BackgroundJob / SystemBackgroundJob / JobScheduler |
 | `zbx1cpy.cluster.active_jobs` | Количество активных фоновых заданий | **По типу задания**:<br>• `JobScheduler`: **всегда активен**<br>• `SystemBackgroundJob`: `hibernate == "no"`<br>• `BackgroundJob`: `hibernate == "no"` |
-| `zbx1cpy.cluster.session_limit` | Лимит сессий (сумма по ИБ) | `max-connections` по всем ИБ |
+| `zbx1cpy.cluster.long_running_jobs` | Количество длительных фоновых заданий | Задания типов:<br>• `BackgroundJob`: фоновые задания пользователей<br>• `SystemBackgroundJob`: системные фоновые задания<br><br>Исключение: `JobScheduler` не считается длительным |
+| `zbx1cpy.cluster.stuck_jobs` | Количество «зависших» заданий | Задание считается зависшим, если:<br>1. Тип: `BackgroundJob` или `SystemBackgroundJob`<br>2. Статус: активное (`hibernate == "no"`)<br>3. Время выполнения: **> 30 минут** |
+| `zbx1cpy.cluster.max_job_duration` | Максимальное время выполнения заданий | Максимальная длительность среди активных заданий (в минутах) |
+| `zbx1cpy.cluster.session_limit` | Лимит сессий (сумма по ИБ) | Берется из `SESSION_LIMIT` в `.env` (количество лицензий) |
 | `zbx1cpy.cluster.session_percent` | Процент заполнения сессий | `total_sessions / session_limit * 100` |
 | `zbx1cpy.cluster.working_servers` | Количество рабочих серверов | Серверы со статусом `working` |
 | `zbx1cpy.cluster.total_servers` | Общее количество серверов | Все серверы кластера |
+| `zbx1cpy.cluster.server_memory_used` | Фактическое использование памяти | Суммарная память всех процессов rphost (КБ) |
+| `zbx1cpy.cluster.server_memory_limit` | Лимит памяти кластера | Лимит памяти из настроек рабочих серверов (КБ). `0` = лимит не задан |
+| `zbx1cpy.cluster.server_memory_percent` | Процент использования памяти | `(server_memory_used / server_memory_limit) * 100`. `0` = лимит не задан |
+| `zbx1cpy.cluster.memory_limit_set` | Флаг заданного лимита памяти | `1` = лимит задан, `0` = лимит не задан |
+| `zbx1cpy.cluster.servers_restarted_recently` | Количество перезапусков серверов | Серверы, перезапущенные за последние 5 минут |
 
 > **Примечание:** Метрика `active_sessions` использует **двухуровневый критерий** активности:
 > 1. **last-active-at ≤ порог** → сессия активна (быстрая проверка)
 > 2. **last-active-at > порог** → строгая проверка (hibernate + calls + bytes)
-> 
+>
 > **Пороги last-active-at:**
 > - **Designer (Конфигуратор)**: 10 минут (разработчик может читать код без вызовов)
 > - **Остальные**: 5 минут (стандартная сессия)
