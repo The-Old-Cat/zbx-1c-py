@@ -114,7 +114,7 @@ UserParameter=zbx1cpy.test, python -c "print('OK')"
 - [ ] Создать виртуальное окружение: `python -m venv .venv`
 - [ ] Установить зависимости: `.venv\Scripts\pip install -e .`
 - [ ] Сгенерировать конфиг: `zbx-1c-generate-userparam`
-- [ ] Скопировать конфиг в `C:\Program Files\Zabbix Agent 2\zabbix_agent2.d\`
+- [ ] Скопировать конфиг в `<ZABBIX_AGENT_DIR>\zabbix_agent2.d\`
 - [ ] Перезапустить Zabbix Agent 2
 - [ ] Проверить: `zabbix_get.exe -s localhost -k "zbx1cpy.test"`
 
@@ -203,15 +203,15 @@ python -m venv .venv
 
 # 3. Копирование конфига (от администратора)
 Copy-Item "zabbix\userparameters\userparameter_1c.conf" `
-    -Destination "C:\Program Files\Zabbix Agent 2\zabbix_agent2.d\" -Force
+    -Destination "<ZABBIX_AGENT_DIR>\zabbix_agent2.d\" -Force
 
 # 4. Перезапуск службы
 Restart-Service "Zabbix Agent 2"
 
 # 5. Проверка
-& "C:\Program Files\Zabbix Agent 2\zabbix_get.exe" -s localhost -k "zbx1cpy.test"
-& "C:\Program Files\Zabbix Agent 2\zabbix_get.exe" -s localhost -k "zbx1cpy.clusters.discovery"
-& "C:\Program Files\Zabbix Agent 2\zabbix_get.exe" -s localhost -k "zbx1cpy.metrics[<cluster_id>]"
+& "<ZABBIX_AGENT_DIR>\zabbix_get.exe" -s localhost -k "zbx1cpy.test"
+& "<ZABBIX_AGENT_DIR>\zabbix_get.exe" -s localhost -k "zbx1cpy.clusters.discovery"
+& "<ZABBIX_AGENT_DIR>\zabbix_get.exe" -s localhost -k "zbx1cpy.metrics[<cluster_id>]"
 ```
 
 ### Linux

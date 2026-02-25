@@ -55,12 +55,12 @@ cp .env.example .env
 Отредактируйте `.env`:
 
 ```env
-RAC_PATH=C:/Program Files/1cv8/х.х.х.х/bin/rac.exe
+RAC_PATH=C:/Program Files/1cv8/<version>/bin/rac.exe
 RAC_HOST=127.0.0.1
 RAC_PORT=1545
-USER_NAME=admin
-USER_PASS=password
-LOG_PATH=G:/Automation/zbx-1c-py/logs
+USER_NAME=<username>
+USER_PASS=<password>
+LOG_PATH=<path-to-logs>
 DEBUG=False
 SESSION_LIMIT=100
 ```
@@ -81,7 +81,7 @@ uv run zbx-1c-generate-userparam
 
 **Windows:**
 ```
-C:\Program Files\Zabbix Agent 2\zabbix_agent2.d\userparameter_1c.conf
+<ZABBIX_AGENT_DIR>\zabbix_agent2.d\userparameter_1c.conf
 ```
 
 **Linux:**
@@ -240,7 +240,7 @@ systemctl restart zabbix-agent2
 zabbix_get -s localhost -k zbx1cpy.clusters.discovery
 
 # Metrics
-zabbix_get -s localhost -k zbx1cpy.metrics[f93863ed-3fdb-4e01-a74c-e112c81b053b]
+zabbix_get -s localhost -k zbx1cpy.metrics[<cluster-id>]
 
 # Memory
 zabbix_get -s localhost -k zbx1cpy.memory.total
@@ -252,7 +252,7 @@ zabbix_get -s localhost -k zbx1cpy.memory.total
 zabbix_get -s localhost -k zbx1cpy.clusters.discovery
 
 # Metrics
-zabbix_get -s localhost -k zbx1cpy.metrics[f93863ed-3fdb-4e01-a74c-e112c81b053b]
+zabbix_get -s localhost -k zbx1cpy.metrics[<cluster-id>]
 ```
 
 ### Проверка в Zabbix
@@ -271,7 +271,7 @@ zabbix_get -s localhost -k zbx1cpy.metrics[f93863ed-3fdb-4e01-a74c-e112c81b053b]
 
 1. Проверьте логи Zabbix Agent:
    ```
-   C:\Program Files\Zabbix Agent 2\zabbix_agent2.log
+   <ZABBIX_AGENT_DIR>\zabbix_agent2.log
    /var/log/zabbix/zabbix_agent2.log
    ```
 
@@ -351,5 +351,5 @@ zabbix_get -s localhost -k zbx1cpy.metrics[f93863ed-3fdb-4e01-a74c-e112c81b053b]
 
 Настройте мониторинг логов через `log[]` item:
 ```
-log["G:\Automation\zbx-1c-py\logs\zbx-1c-*.log",ERROR]
+log["<LOG_PATH>\\zbx-1c-*.log",ERROR]
 ```

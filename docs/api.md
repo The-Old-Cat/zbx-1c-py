@@ -24,7 +24,7 @@ python -m zbx_1c check-ras [--config .env]
   "host": "127.0.0.1",
   "port": 1545,
   "available": true,
-  "rac_path": "C:\\Program Files\\1cv8\\8.3.27.1786\\bin\\rac.exe"
+  "rac_path": "C:\\Program Files\\1cv8\\<version>\\bin\\rac.exe"
 }
 ```
 
@@ -43,9 +43,9 @@ python -m zbx_1c discovery [--config .env]
 {
   "data": [
     {
-      "{#CLUSTER.ID}": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+      "{#CLUSTER.ID}": "<cluster-id>",
       "{#CLUSTER.NAME}": "Локальный кластер",
-      "{#CLUSTER.HOST}": "srv-pinavto01",
+      "{#CLUSTER.HOST}": "<rac-host>",
       "{#CLUSTER.PORT}": 1541
     }
   ]
@@ -67,8 +67,8 @@ python -m zbx_1c clusters [--config .env] [--json-output]
 📊 Доступные кластеры 1С:
 
 1. Локальный кластер
-   ID: f93863ed-3fdb-4e01-a74c-e112c81b053b
-   Host: srv-pinavto01:1541
+   ID: <cluster-id>
+   Host: <rac-host>:1541
    Status: unknown
 ```
 
@@ -76,9 +76,9 @@ python -m zbx_1c clusters [--config .env] [--json-output]
 ```json
 [
   {
-    "id": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+    "id": "<cluster-id>",
     "name": "Локальный кластер",
-    "host": "srv-pinavto01",
+    "host": "<rac-host>",
     "port": 1541,
     "status": "unknown"
   }
@@ -97,16 +97,16 @@ python -m zbx_1c infobases <cluster_id> [--config .env]
 
 **Пример:**
 ```bash
-python -m zbx_1c infobases f93863ed-3fdb-4e01-a74c-e112c81b053b
+python -m zbx_1c infobases <cluster-id>
 ```
 
 **Пример вывода:**
 ```json
 [
   {
-    "infobase": "29a7081b-b80a-442b-b203-190bc301a859",
-    "name": "ka_pin_test8",
-    "descr": ""
+    "infobase": "<infobase-id>",
+    "name": "<infobase-name>",
+    "descr": "<infobase-description>"
   },
   ...
 ]
@@ -126,11 +126,11 @@ python -m zbx_1c sessions <cluster_id> [--config .env]
 ```json
 [
   {
-    "session": "1d17b820-cad1-4e81-8b79-c0905daff40f",
+    "session": "<session-id>",
     "session-id": 22,
-    "infobase": "29a7081b-b80a-442b-b203-190bc301a859",
-    "user-name": "Иванов Иван",
-    "host": "srv-pinavto01",
+    "infobase": "<infobase-id>",
+    "user-name": "<username>",
+    "host": "<client-host>",
     "app-id": "Designer",
     "started-at": "2026-02-12T16:08:30",
     "last-active-at": "2026-02-16T23:15:04",
@@ -169,7 +169,7 @@ python -m zbx_1c metrics [cluster_id] [--config .env]
 ```json
 {
   "cluster": {
-    "id": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+    "id": "<cluster-id>",
     "name": "Локальный кластер",
     "status": "unknown"
   },
@@ -226,14 +226,14 @@ python -m zbx_1c test [--config .env]
 ```
 🔧 Тестирование подключения к 1С...
 
-📁 RAC path: C:\Program Files\1cv8\8.3.27.1786\bin\rac.exe
+📁 RAC path: C:\Program Files\1cv8\<version>\bin\rac.exe
    ✅ RAC executable found
 
 🌐 RAS: 127.0.0.1:1545
    ✅ RAS is available
 
 📊 Clusters found: 1
-   - Локальный кластер (f93863ed-3fdb-4e01-a74c-e112c81b053b)
+   - Локальный кластер (<cluster-id>)
      ✅ Metrics collected: 3 sessions, 3 active, 0 jobs
 
 ✅ Все проверки пройдены успешно
@@ -279,15 +279,15 @@ python -m zbx_1c.monitoring.session.collector summary <cluster_id>
 **Пример вывода:**
 ```json
 {
-  "cluster_id": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+  "cluster_id": "<cluster-id>",
   "timestamp": "2026-02-16T23:15:12",
   "total_sessions": 3,
   "active_sessions": 3,
   "hibernated_sessions": 0,
   "unique_users": 2,
   "users": {
-    "Иванов И.": 1,
-    "Петров П.": 2
+    "<user1>": 1,
+    "<user2>": 2
   },
   "applications": {
     "Designer": 2,
@@ -309,7 +309,7 @@ python -m zbx_1c.monitoring.session.collector count <cluster_id>
 **Пример вывода:**
 ```json
 {
-  "cluster_id": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+  "cluster_id": "<cluster-id>",
   "total_sessions": 3,
   "active_sessions": 3
 }
@@ -350,7 +350,7 @@ uvicorn zbx_1c.api.main:app --reload --host 0.0.0.0 --port 8000
 ```json
 {
   "status": "healthy",
-  "rac_path": "C:\\Program Files\\1cv8\\8.3.27.1786\\bin\\rac.exe",
+  "rac_path": "C:\\Program Files\\1cv8\\<version>\\bin\\rac.exe",
   "rac_host": "127.0.0.1",
   "rac_port": 1545
 }
@@ -367,9 +367,9 @@ uvicorn zbx_1c.api.main:app --reload --host 0.0.0.0 --port 8000
 {
   "data": [
     {
-      "{#CLUSTER.ID}": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+      "{#CLUSTER.ID}": "<cluster-id>",
       "{#CLUSTER.NAME}": "Локальный кластер",
-      "{#CLUSTER.HOST}": "srv-pinavto01",
+      "{#CLUSTER.HOST}": "<rac-host>",
       "{#CLUSTER.PORT}": 1541
     }
   ]
@@ -386,9 +386,9 @@ uvicorn zbx_1c.api.main:app --reload --host 0.0.0.0 --port 8000
 ```json
 [
   {
-    "id": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+    "id": "<cluster-id>",
     "name": "Локальный кластер",
-    "host": "srv-pinavto01",
+    "host": "<rac-host>",
     "port": 1541,
     "status": "unknown"
   }
@@ -405,7 +405,7 @@ uvicorn zbx_1c.api.main:app --reload --host 0.0.0.0 --port 8000
 ```json
 {
   "cluster": {
-    "id": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+    "id": "<cluster-id>",
     "name": "Локальный кластер",
     "status": "unknown"
   },
@@ -462,7 +462,7 @@ uvicorn zbx_1c.api.main:app --reload --host 0.0.0.0 --port 8000
   "host": "127.0.0.1",
   "port": 1545,
   "available": true,
-  "rac_path": "C:\\Program Files\\1cv8\\8.3.27.1786\\bin\\rac.exe"
+  "rac_path": "C:\\Program Files\\1cv8\\<version>\\bin\\rac.exe"
 }
 ```
 

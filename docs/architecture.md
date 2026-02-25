@@ -198,8 +198,8 @@ clusters = parse_clusters(result["stdout"])
 ### Формат вывода rac
 
 ```
-cluster : f93863ed-3fdb-4e01-a74c-e112c81b053b
-host    : srv-pinavto01
+cluster : <cluster-id>
+host    : <rac-host>
 port    : 1541
 name    : "Локальный кластер"
 ```

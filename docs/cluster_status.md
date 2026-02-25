@@ -22,22 +22,22 @@ python send_cluster_status.py --all
 ### Переменные окружения
 
 ```bash
-ZABBIX_SERVER=192.168.1.100      # Хост Zabbix сервера
-ZABBIX_HOST=1C_Cluster           # Имя хоста в Zabbix
+ZABBIX_SERVER=<zabbix-server-host>      # Хост Zabbix сервера
+ZABBIX_HOST=<zabbix-host-name>           # Имя хоста в Zabbix
 ```
 
 ### Пример использования
 
 ```bash
 # Windows
-set ZABBIX_SERVER=192.168.1.100
-set ZABBIX_HOST=1C_Cluster
-python send_cluster_status.py f93863ed-3fdb-4e01-a74c-e112c81b053b
+set ZABBIX_SERVER=<zabbix-server-host>
+set ZABBIX_HOST=<zabbix-host-name>
+python send_cluster_status.py <cluster-id>
 
 # Linux
-export ZABBIX_SERVER=192.168.1.100
-export ZABBIX_HOST=1C_Cluster
-python send_cluster_status.py f93863ed-3fdb-4e01-a74c-e112c81b053b
+export ZABBIX_SERVER=<zabbix-server-host>
+export ZABBIX_HOST=<zabbix-host-name>
+python send_cluster_status.py <cluster-id>
 ```
 
 ### Планировщик заданий (Windows)
@@ -109,7 +109,7 @@ chmod +x /usr/lib/zabbix/externalscripts/zbx1cpy_cluster_status.py
 |----------|----------|
 | **Имя** | `Cluster status` |
 | **Тип** | `External check` |
-| **Ключ** | `zbx1cpy.cluster.status[f93863ed-3fdb-4e01-a74c-e112c81b053b]` |
+| **Ключ** | `zbx1cpy.cluster.status[<cluster-id>]` |
 | **Интервал опроса** | `1m` |
 | **Тип информации** | `Текст` |
 
@@ -132,7 +132,7 @@ python zbx_1c_metrics.py <cluster_id> | zabbix_sender -T -i -
 ```json
 {
   "cluster": {
-    "id": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+    "id": "<cluster-id>",
     "name": "Локальный кластер",
     "status": "available"
   },
@@ -208,9 +208,9 @@ python -m zbx_1c.cli.commands discovery
 {
   "data": [
     {
-      "{#CLUSTER.ID}": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+      "{#CLUSTER.ID}": "<cluster-id>",
       "{#CLUSTER.NAME}": "Локальный кластер",
-      "{#CLUSTER.HOST}": "srv-pinavto01",
+      "{#CLUSTER.HOST}": "<rac-host>",
       "{#CLUSTER.PORT}": 1541,
       "{#CLUSTER.STATUS}": "available"
     }
@@ -221,25 +221,25 @@ python -m zbx_1c.cli.commands discovery
 ### Проверка отправки статуса
 
 ```bash
-python send_cluster_status.py f93863ed-3fdb-4e01-a74c-e112c81b053b
+python send_cluster_status.py <cluster-id>
 ```
 
 Вывод:
 ```
-[OK] Sent status 'available' for cluster f93863ed-3fdb-4e01-a74c-e112c81b053b
+[OK] Sent status 'available' for cluster <cluster-id>
 ```
 
 ### Проверка метрик со статусом
 
 ```bash
-python zbx_1c_metrics.py f93863ed-3fdb-4e01-a74c-e112c81b053b
+python zbx_1c_metrics.py <cluster-id>
 ```
 
 Вывод:
 ```json
 {
   "cluster": {
-    "id": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+    "id": "<cluster-id>",
     "name": "Локальный кластер",
     "status": "available"
   },

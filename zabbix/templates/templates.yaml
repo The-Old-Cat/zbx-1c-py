@@ -8,37 +8,119 @@ zabbix_export:
       template: "1C Enterprise Monitoring"
       name: "1C Enterprise Monitoring"
       description: |
-        Шаблон "1C Enterprise Monitoring" предназначен для мониторинга кластеров 1С.
-          
-          Основные возможности:
-          - Discovery rule "1C Clusters Discovery" автоматически обнаруживает все кластеры.
-          - Создаются dependent items:
-              - Active sessions: количество активных пользовательских сессий.
-              - Total sessions: общее количество сессий в кластере.
-              - Active background jobs: реально выполняющиеся фоновые задания.
-              - Total jobs: общее количество фоновых заданий в кластере.
-              - Total servers / Working servers: количество серверов и рабочих серверов в кластере.
-              - Session limit / Session usage percent: контроль лимитов и процента использования сессий.
-              - Cluster status: текущий статус кластера.
-              - Cluster metrics: все собранные метрики в сыром виде.
-          - Создаются триггеры для каждого item_prototype:
-              - "Background jobs stall detected (>80% active)": более 80% фоновых заданий активны.
-              - "Cluster {#CLUSTER.NAME} session usage > 90%": превышение 90% использования сессий.
-              - "Cluster {#CLUSTER.NAME} is unavailable": кластер недоступен.
-              - "Total jobs [{#CLUSTER.ID}].last(),5m)>100": резкий рост очереди заданий.
+        Шаблон "1C Enterprise Monitoring" предназначен для мониторинга кластеров 1С:Предприятие с помощью инструмента zbx-1c-py.
 
-          Рекомендации для дежурной смены:
-          - При срабатывании триггеров проверять нагрузку на серверы и очереди фоновых заданий.
-          - Контролировать лицензии при превышении 90% использования сессий.
-          - Проверять доступность серверов кластера при недоступности кластера.
-          - Все замечания фиксировать в журнале дежурной смены.
-          
-          Графики дашборда:
-          - Total sessions, Active sessions: оценка нагрузки пользователей.
-          - Total jobs, Active background jobs: контроль фоновых заданий и очередей.
-          - Текстовый виджет содержит инструкцию для дежурной смены.
+        Терминология 1С:
+        - Кластер — весь комплекс серверов 1С
+        - Центральный сервер — управляет кластером (процесс ragent)
+        - Рабочий сервер — физическая/виртуальная машина в кластере (хост с агентом ragent)
+        - Рабочий процесс (rphost.exe) — процесс на Рабочем сервере, выполняющий код 1С
+
+        Основные возможности:
+        - Discovery rule "1C Clusters Discovery" автоматически обнаруживает все кластеры через rac utility.
+        - Создаются dependent items от master item "zbx1cpy.metrics[{#CLUSTER.ID}]":
+            - Cluster status: статус кластера (available/unavailable/unknown)
+            - Total sessions: общее количество сессий в кластере
+            - Active sessions: количество активных сессий (двухуровневый критерий: last-active-at ≤ 10 мин для Designer, ≤ 5 мин для остальных; либо hibernate=no + calls≥1 + bytes≥1024)
+            - Total jobs: общее количество фоновых заданий (BackgroundJob, SystemBackgroundJob, JobScheduler)
+            - Active jobs: количество активных фоновых заданий (JobScheduler всегда активен, остальные по hibernate=no)
+            - Long running jobs: количество длительных заданий (BackgroundJob и SystemBackgroundJob)
+            - Stuck jobs: количество «зависших» заданий (активные длительные задания выполняются >30 минут)
+            - Max job duration: максимальное время выполнения среди активных заданий (минут)
+            - Session limit: лимит сессий (берется из SESSION_LIMIT в .env, количество лицензий)
+            - Session percent: процент заполнения сессий от лимита
+            - Total servers: общее количество серверов в кластере
+            - Working servers: количество Рабочих серверов в статусе "working"
+            - Server memory used: фактическое использование памяти всеми Рабочими процессами (КБ)
+            - Server memory limit: лимит памяти (КБ). Если 0 — лимит не задан в настройках кластера
+            - Server memory percent: процент использования памяти (если лимит задан)
+            - Memory limit set: флаг (1=лимит задан, 0=не задан)
+            - Servers restarted recently: количество Рабочих серверов, перезапущенных за последние 5 минут
+        - Создаются триггеры:
+            - "Session usage > 90%": превышение 90% использования сессий
+            - "Cluster is unavailable": кластер недоступен
+            - "High average background jobs": среднее количество активных заданий > 5 за 5 проверок
+            - "Total jobs growth > 100": резкий рост очереди заданий за 5 минут
+            - "Background jobs stall detected": более 80% фоновых заданий активны
+            - "Server memory usage > 85%": память Рабочих процессов превышает 85% (только если memory_limit_set=1)
+
+        Рекомендации для дежурной смены:
+        - При срабатывании триггеров проверять нагрузку на серверы и очереди фоновых заданий
+        - Контролировать лицензии при превышении 90% использования сессий
+        - Проверять доступность серверов кластера при недоступности кластера
+        - Все замечания фиксировать в журнале дежурной смены
+
+        Графики дашборда:
+        - Total sessions, Active sessions: оценка нагрузки пользователей
+        - Total jobs, Active jobs: контроль фоновых заданий и очередей
+        - Server memory used: мониторинг памяти Рабочих процессов
+        - Servers restarted recently: выявление аварийных перезапусков
       groups:
         - name: "1C Servers"
+      items:
+        - uuid: d8e5070eb9a74a45829aad35dc78c113
+          name: "1C: Process Memory (all)"
+          key: zbx1cpy.memory.all
+          history: 7d
+          value_type: LOG
+          trends: "0"
+          tags:
+            - tag: App
+              value: 1С
+        - uuid: 08ffcb03044a47c196acbf85a17892ae
+          name: "1C: ragent process memory"
+          type: DEPENDENT
+          key: zbx1cpy.memory.ragent
+          delay: "0"
+          units: B
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.ragent
+            - type: MULTIPLIER
+              parameters:
+                - "1024"
+          master_item:
+            key: zbx1cpy.memory.all
+          tags:
+            - tag: App
+              value: 1С
+        - uuid: 70583dc88f3a4f6d9bcfc6ec5658be62
+          name: "1C: rmngr process memory"
+          type: DEPENDENT
+          key: zbx1cpy.memory.rmngr
+          delay: "0"
+          units: B
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.rmngr
+            - type: MULTIPLIER
+              parameters:
+                - "1024"
+          master_item:
+            key: zbx1cpy.memory.all
+          tags:
+            - tag: App
+              value: 1С
+        - uuid: f925a91a13e4464f864a1bd56bc43750
+          name: "1C: rphost process memory"
+          type: DEPENDENT
+          key: zbx1cpy.memory.rphost
+          delay: "0"
+          units: B
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.rphost
+            - type: MULTIPLIER
+              parameters:
+                - "1024"
+          master_item:
+            key: zbx1cpy.memory.all
+          tags:
+            - tag: App
+              value: 1С
       discovery_rules:
         - uuid: 1cd3db8d376344eaa6d42fe2f3eade5e
           name: "1C Clusters Discovery"
@@ -56,6 +138,12 @@ zabbix_export:
               trends: "0"
               description: |
                 Количество реально выполняющихся фоновых заданий в кластере.
+                
+                Критерии активности по типам заданий:
+                - JobScheduler: всегда активен (планировщик регламентных заданий)
+                - SystemBackgroundJob: активен, если hibernate = "no"
+                - BackgroundJob: активен, если hibernate = "no"
+                
                 Используется для анализа нагрузки и обнаружения зависших заданий.
               preprocessing:
                 - type: JSONPATH
@@ -88,6 +176,16 @@ zabbix_export:
               trends: "0"
               description: |
                 Количество активных сессий в кластере за последние 5 минут.
+                
+                Критерии активности (двухуровневый):
+                1. last-active-at ≤ порог → сессия активна:
+                   - Designer (Конфигуратор): 10 минут
+                   - Остальные приложения: 5 минут
+                2. last-active-at > порог → строгая проверка:
+                   - hibernate = "no"
+                   - calls-last-5min ≥ 1
+                   - bytes-last-5min ≥ 1024 байт
+                
                 Используется для мониторинга нагрузки на кластер.
               preprocessing:
                 - type: JSONPATH
@@ -104,7 +202,14 @@ zabbix_export:
               key: "zbx1cpy.cluster.long_running_jobs[{#CLUSTER.ID}]"
               delay: "0"
               trends: "0"
-              description: "Количество длительных фоновых заданий (BackgroundJob и SystemBackgroundJob)."
+              description: |
+                Количество длительных фоновых заданий в кластере.
+                
+                Длительные задания — это задания типов:
+                - BackgroundJob: фоновые задания пользователей
+                - SystemBackgroundJob: системные фоновые задания
+                
+                Исключение: JobScheduler (планировщик) не считается длительным заданием.
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -121,8 +226,8 @@ zabbix_export:
               delay: "0"
               trends: "0"
               description: |
-                Количество реально выполняющихся фоновых заданий в кластере.
-                Используется для анализа нагрузки и обнаружения зависших заданий.
+                Максимальное время выполнения среди активных фоновых заданий (в минутах).
+                Используется для выявления зависших заданий.
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -140,7 +245,9 @@ zabbix_export:
               value_type: FLOAT
               trends: "0"
               units: "%"
-              description: "Флаг: задан ли лимит памяти в настройках рабочего сервера (1=да, 0=нет)."
+              description: |
+                Флаг: задан ли лимит памяти в настройках Рабочего сервера (1=да, 0=нет).
+                Если 0 — server_memory_percent не рассчитывается (возвращает 0).
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -151,12 +258,14 @@ zabbix_export:
                 - tag: App
                   value: 1С
             - uuid: b5fe6490ce7443a58f0eabd2005ec614
-              name: "1C Cluster Servers Restarted [{#CLUSTER.NAME}]"
+              name: "1C: Cluster Servers Restarted [{#CLUSTER.NAME}]"
               type: DEPENDENT
               key: "zbx1cpy.cluster.servers_restarted_recently[{#CLUSTER.ID}]"
               delay: "0"
               trends: "0"
-              description: "отслеживает количество перезапусков серверов в кластере 1С"
+              description: |
+                Количество Рабочих серверов (физических/виртуальных машин), перезапущенных за последние 5 минут.
+                Выявляет аварийные перезагрузки.
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -166,6 +275,57 @@ zabbix_export:
               tags:
                 - tag: App
                   value: 1С
+            - uuid: 64276e99c5f34e72802b5af182a1341c
+              name: "1C: Server memory limit [{#CLUSTER.NAME}]"
+              type: DEPENDENT
+              key: "zbx1cpy.cluster.server_memory_limit[{#CLUSTER.ID}]"
+              delay: "0"
+              value_type: FLOAT
+              trends: "0"
+              units: B
+              description: |
+                Лимит памяти для Рабочих процессов (rphost.exe) на серверах кластера (КБ → Bytes).
+                Если 0 — лимит не задан в настройках кластера 1С.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.server_memory_limit
+                - type: MULTIPLIER
+                  parameters:
+                    - "1048576"
+              master_item:
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+              tags:
+                - tag: App
+                  value: 1С
+            - uuid: 0817412b52c94de3b28d4d3e133f982a
+              name: "1C: Server memory percent [{#CLUSTER.NAME}]"
+              type: DEPENDENT
+              key: "zbx1cpy.cluster.server_memory_percent[{#CLUSTER.ID}]"
+              delay: "0"
+              trends: "0"
+              units: "%"
+              description: |
+                Процент использования памяти всеми Рабочими процессами (rphost.exe) на серверах кластера.
+                Рассчитывается только если memory_limit_set=1 (лимит памяти задан).
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.server_memory_percent
+              master_item:
+                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+              tags:
+                - tag: App
+                  value: 1С
+              trigger_prototypes:
+                - uuid: d4af73f2b62640059fdfea1bea227c34
+                  expression: "last(/1C Enterprise Monitoring/zbx1cpy.cluster.server_memory_percent[{#CLUSTER.ID}])>85"
+                  name: "1C: Server memory usage > 85% on {#CLUSTER.NAME}"
+                  opdata: "Current usage: {ITEM.LASTVALUE1}%"
+                  priority: AVERAGE
+                  tags:
+                    - tag: App
+                      value: 1C
             - uuid: d8a5c1ba13a04bb3a867f32663bbe2cb
               name: "1C: Server memory used [{#CLUSTER.NAME}]"
               type: DEPENDENT
@@ -174,7 +334,7 @@ zabbix_export:
               value_type: FLOAT
               trends: "0"
               units: B
-              description: "Фактическое использование памяти всеми серверами кластера (КБ)."
+              description: "Фактическое использование памяти всеми Рабочими процессами (rphost.exe) на серверах кластера (КБ → Bytes)."
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -194,7 +354,7 @@ zabbix_export:
               delay: "0"
               trends: "0"
               units: sessions
-              description: "Лимит сессий кластера."
+              description: "Лимит сессий кластера. Берется из SESSION_LIMIT в .env (количество лицензий)."
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -211,7 +371,7 @@ zabbix_export:
               delay: "0"
               trends: "0"
               units: "%"
-              description: "Процент использования сессий от лимита."
+              description: "Процент использования сессий от лимита (session_limit)."
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -229,7 +389,7 @@ zabbix_export:
                   priority: AVERAGE
                   description: |
                     Срабатывает при превышении 90% использования сессий кластера.
-                    Необходима проверка лицензий и нагрузки.
+                    Необходима проверка нагрузки и освобождение сессий.
                   tags:
                     - tag: App
                       value: 1С
@@ -261,7 +421,15 @@ zabbix_export:
               key: "zbx1cpy.cluster.stuck_jobs[{#CLUSTER.ID}]"
               delay: "0"
               trends: "0"
-              description: "Количество зависших фоновых заданий (выполняются >30 минут)"
+              description: |
+                Количество «зависших» фоновых заданий в кластере.
+                
+                Задание считается зависшим, если выполняются все условия:
+                1. Тип задания: BackgroundJob или SystemBackgroundJob (длительные задания)
+                2. Статус: активное (hibernate = "no")
+                3. Время выполнения: > 30 минут
+                
+                Используется для выявления проблемных заданий, требующих вмешательства.
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -277,7 +445,7 @@ zabbix_export:
               key: "zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]"
               delay: "0"
               trends: "0"
-              description: "Общее количество фоновых заданий в кластере."
+              description: "Общее количество фоновых заданий в кластере (включая JobScheduler)."
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -306,7 +474,7 @@ zabbix_export:
               delay: "0"
               trends: "0"
               units: servers
-              description: "Общее количество серверов в кластере."
+              description: "Общее количество серверов (физических/виртуальных машин) в кластере."
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -322,7 +490,7 @@ zabbix_export:
               key: "zbx1cpy.cluster.total_sessions[{#CLUSTER.ID}]"
               delay: "0"
               trends: "0"
-              description: "Общее количество сессий в кластере."
+              description: "Общее количество сессий в кластере (все подключения пользователей)."
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -339,7 +507,7 @@ zabbix_export:
               delay: "0"
               trends: "0"
               units: servers
-              description: "Количество рабочих серверов в кластере."
+              description: 'Количество Рабочих серверов (физических/виртуальных машин) в кластере, которые находятся в статусе "working".'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -349,127 +517,15 @@ zabbix_export:
               tags:
                 - tag: App
                   value: 1С
-            - uuid: a1b2c3d4e5f64789a0b1c2d3e4f5a6b7
-              name: "1C: License type [{#CLUSTER.NAME}]"
-              type: DEPENDENT
-              key: "zbx1cpy.license.type[{#CLUSTER.ID}]"
-              delay: "0"
-              value_type: CHAR
-              trends: "0"
-              description: |
-                Тип лицензирования 1С:
-                - server: сервер лицензирования (удалённый или локальный)
-                - local: локальные лицензии (на этом сервере)
-                - hasp: аппаратные ключи HASP (Sentinel)
-                - mixed: смешанный тип
-                - unknown: не определён
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - $.license_type
-              master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
-              tags:
-                - tag: App
-                  value: 1С
-            - uuid: b2c3d4e5f6a74890b1c2d3e4f5a6b7c8
-              name: "1C: License total [{#CLUSTER.NAME}]"
-              type: DEPENDENT
-              key: "zbx1cpy.license.total[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
-              units: licenses
-              description: "Общее количество доступных лицензий 1С."
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - $.license_total
-              master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
-              tags:
-                - tag: App
-                  value: 1С
-            - uuid: c3d4e5f6a7b84901c2d3e4f5a6b7c8d9
-              name: "1C: License used [{#CLUSTER.NAME}]"
-              type: DEPENDENT
-              key: "zbx1cpy.license.used[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
-              units: licenses
-              description: "Количество используемых лицензий 1С."
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - $.license_used
-              master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
-              tags:
-                - tag: App
-                  value: 1С
-            - uuid: d4e5f6a7b8c94a02d3e4f5a6b7c8d9e0
-              name: "1C: License free [{#CLUSTER.NAME}]"
-              type: DEPENDENT
-              key: "zbx1cpy.license.free[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
-              units: licenses
-              description: "Количество свободных лицензий 1С."
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - $.license_free
-              master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
-              tags:
-                - tag: App
-                  value: 1С
-            - uuid: e5f6a7b8c9d04b03e4f5a6b7c8d9e0f1
-              name: "1C: License usage percent [{#CLUSTER.NAME}]"
-              type: DEPENDENT
-              key: "zbx1cpy.license.usage_percent[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
-              units: "%"
-              description: "Процент использования лицензий 1С."
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - $.license_usage_percent
-              master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
-              tags:
-                - tag: App
-                  value: 1С
-              trigger_prototypes:
-                - uuid: f6a7b8c9d0e14c04f5a6b7c8d9e0f1a2
-                  expression: "min(/1C Enterprise Monitoring/zbx1cpy.license.usage_percent[{#CLUSTER.ID}],5m) > 90"
-                  name: "1C: License usage on cluster {#CLUSTER.NAME} > 90%"
-                  opdata: "Current usage: {ITEM.LASTVALUE1}%"
-                  priority: HIGH
-                  description: |
-                    Срабатывает при превышении 90% использования лицензий.
-                    Требуется проверка количества свободных лицензий и нагрузки.
-                  tags:
-                    - tag: App
-                      value: 1С
-                - uuid: a7b8c9d0e1f24d05a6b7c8d9e0f1a2b3
-                  expression: "last(/1C Enterprise Monitoring/zbx1cpy.license.free[{#CLUSTER.ID}])=0"
-                  name: "1C: No free licenses on cluster {#CLUSTER.NAME}"
-                  opdata: "Free licenses: {ITEM.LASTVALUE1}"
-                  priority: DISASTER
-                  description: |
-                    Все лицензии исчерпаны. Новые пользователи не смогут подключиться.
-                    Требуется немедленное вмешательство.
-                  tags:
-                    - tag: App
-                      value: 1С
             - uuid: 08da3de1ef38415faa8d44d33b5e3f51
               name: "1C: Cluster Metrics [{#CLUSTER.NAME}]"
               key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
               history: 7d
               value_type: LOG
               trends: "0"
-              description: "Сырые данные после обнаружения кластера."
+              description: |
+                Master item для всех dependent items.
+                Содержит сырые данные метрик кластера в формате JSON.
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -480,7 +536,7 @@ zabbix_export:
           trigger_prototypes:
             - uuid: 0e985395dce24956ada78dfa97c72c9b
               expression: |
-                (last(/1C Enterprise Monitoring/zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]) / 
+                (last(/1C Enterprise Monitoring/zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]) /
                 last(/1C Enterprise Monitoring/zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]) > 0.8)
                 and
                 last(/1C Enterprise Monitoring/zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]) > 10

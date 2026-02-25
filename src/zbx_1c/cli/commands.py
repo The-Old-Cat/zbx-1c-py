@@ -696,5 +696,82 @@ def monitor():
     cli()
 
 
+# =============================================================================
+# Entry points для project.scripts (прямой вызов команд)
+# =============================================================================
+
+
+def discovery():
+    """Entry point для zbx-1c-discovery"""
+    sys.argv = [sys.argv[0], "discovery"] + sys.argv[1:]
+    cli()
+
+
+def check_ras_cmd():
+    """Entry point для zbx-1c-check-ras"""
+    sys.argv = [sys.argv[0], "check-ras"] + sys.argv[1:]
+    cli()
+
+
+def list_clusters():
+    """Entry point для zbx-1c-clusters"""
+    sys.argv = [sys.argv[0], "clusters"] + sys.argv[1:]
+    cli()
+
+
+def get_metrics():
+    """Entry point для zbx-1c-metrics"""
+    sys.argv = [sys.argv[0], "metrics"] + sys.argv[1:]
+    cli()
+
+
+def get_cluster_status():
+    """Entry point для zbx-1c-status"""
+    sys.argv = [sys.argv[0], "status"] + sys.argv[1:]
+    cli()
+
+
+def get_infobases_cmd():
+    """Entry point для zbx-1c-infobases"""
+    sys.argv = [sys.argv[0], "infobases"] + sys.argv[1:]
+    cli()
+
+
+def get_sessions_cmd():
+    """Entry point для zbx-1c-sessions"""
+    sys.argv = [sys.argv[0], "sessions"] + sys.argv[1:]
+    cli()
+
+
+def get_jobs_cmd():
+    """Entry point для zbx-1c-jobs"""
+    sys.argv = [sys.argv[0], "jobs"] + sys.argv[1:]
+    cli()
+
+
+def get_all():
+    """Entry point для zbx-1c-all"""
+    sys.argv = [sys.argv[0], "all"] + sys.argv[1:]
+    cli()
+
+
+def get_process_memory():
+    """Entry point для zbx-1c-memory"""
+    sys.argv = [sys.argv[0], "memory"] + sys.argv[1:]
+    cli()
+
+
+def test_connection():
+    """Entry point для zbx-1c-test"""
+    sys.argv = [sys.argv[0], "test"] + sys.argv[1:]
+    cli()
+
+
+def check_config_cmd():
+    """Entry point для zbx-1c-check-config"""
+    sys.argv = [sys.argv[0], "check-config"] + sys.argv[1:]
+    cli()
+
+
 if __name__ == "__main__":
     cli()

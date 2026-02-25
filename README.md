@@ -161,8 +161,8 @@ RAC_HOST=127.0.0.1
 RAC_PORT=1545
 
 # Параметры аутентификации (опционально)
-USER_NAME=admin
-USER_PASS=password
+USER_NAME=<username>
+USER_PASS=<password>
 
 # Путь к директории для логов
 LOG_PATH=./logs
@@ -194,12 +194,17 @@ CACHE_TTL=300
 zbx-1c <command> [options]           # Основная команда
 zbx-1c-check-ras                      # Проверка RAS
 zbx-1c-discovery                      # Обнаружение кластеров
+zbx-1c-clusters                       # Список кластеров
 zbx-1c-metrics [cluster_id]           # Метрики
+zbx-1c-status <cluster_id>            # Статус кластера
 zbx-1c-infobases <cluster_id>         # Информационные базы
 zbx-1c-sessions <cluster_id>          # Сессии
 zbx-1c-jobs <cluster_id>              # Фоновые задания
+zbx-1c-all <cluster_id>               # Вся информация о кластере
+zbx-1c-memory                         # Память процессов 1С
 zbx-1c-test                           # Тест подключения
 zbx-1c-monitor [cluster_id]           # Мониторинг (алиас metrics)
+zbx-1c-check-config                   # Проверка конфигурации
 ```
 
 **2. Как Python-модуль:**
@@ -215,17 +220,22 @@ python -m zbx_1c <command> [options]
 uv run zbx-1c <command> [options]
 uv run zbx-1c check-ras
 uv run zbx-1c discovery
-uv run zbx-1c metrics f93863ed-3fdb-4e01-a74c-e112c81b053b
+uv run zbx-1c metrics <cluster-id>
 
 # Отдельные entry points
 uv run zbx-1c-check-ras
 uv run zbx-1c-discovery
+uv run zbx-1c-clusters
 uv run zbx-1c-metrics [cluster_id]
+uv run zbx-1c-status <cluster_id>
 uv run zbx-1c-infobases <cluster_id>
 uv run zbx-1c-sessions <cluster_id>
 uv run zbx-1c-jobs <cluster_id>
+uv run zbx-1c-all <cluster_id>
+uv run zbx-1c-memory
 uv run zbx-1c-test
 uv run zbx-1c-monitor [cluster_id]
+uv run zbx-1c-check-config
 
 # С указанием конфигурации
 uv run zbx-1c-check-ras --config .env.prod
@@ -245,13 +255,14 @@ uv run zbx-1c metrics --config /path/to/.env
 | `check-ras` | `zbx-1c-check-ras` | Проверка доступности RAS сервиса | — |
 | `check-config` | `zbx-1c-check-config` | Проверка корректности конфигурации | — |
 | `discovery` | `zbx-1c-discovery` | Обнаружение кластеров для Zabbix LLD | — |
-| `clusters` | — | Список доступных кластеров | — |
+| `clusters` | `zbx-1c-clusters` | Список доступных кластеров | — |
 | `infobases` | `zbx-1c-infobases` | Получение информационных баз | `<cluster_id>` |
 | `sessions` | `zbx-1c-sessions` | Получение сессий кластера | `<cluster_id>` |
 | `jobs` | `zbx-1c-jobs` | Получение фоновых заданий | `<cluster_id>` |
 | `metrics` | `zbx-1c-metrics` | Получение метрик (для Zabbix) | `[cluster_id]` |
 | `status` | `zbx-1c-status` | Статус кластера | `<cluster_id>` |
-| `all` | — | Вся информация о кластере | `<cluster_id>` |
+| `all` | `zbx-1c-all` | Вся информация о кластере | `<cluster_id>` |
+| `memory` | `zbx-1c-memory` | Память процессов 1С (rphost, rmngr, ragent) | — |
 | `test` | `zbx-1c-test` | Тестирование подключения | — |
 | `monitor` | `zbx-1c-monitor` | Мониторинг (алиас `metrics`) | `[cluster_id]` |
 
@@ -288,7 +299,7 @@ zbx-1c check-ras -c .env.prod
   "host": "127.0.0.1",
   "port": 1545,
   "available": true,
-  "rac_path": "C:/Program Files/1cv8/8.3.23.1740/bin/rac.exe"
+  "rac_path": "C:/Program Files/1cv8/<version>/bin/rac.exe"
 }
 ```
 
@@ -327,7 +338,7 @@ zbx-1c check-config --config /path/to/.env
 РЕЗУЛЬТАТЫ ПРОВЕРКИ КОНФИГУРАЦИИ
 ============================================================
 
-[+] RAC_PATH        - Файл доступен: C:/Program Files/1cv8/8.3.27.1786/bin/rac.exe
+[+] RAC_PATH        - Файл доступен: C:/Program Files/1cv8/<version>/bin/rac.exe
 [+] LOG_PATH        - Директория для логов доступна: logs
 [+] RAC_HOST        - Хост RAS: 127.0.0.1
 [+] RAC_PORT        - Порт RAS: 1545
@@ -380,14 +391,14 @@ zbx-1c discovery -c /etc/zabbix/.env
 {
   "data": [
     {
-      "id": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+      "id": "<cluster-id-1>",
       "name": "Production Cluster",
       "host": "127.0.0.1",
       "port": 1545,
       "status": "unknown"
     },
     {
-      "id": "a1234567-89ab-cdef-0123-456789abcdef",
+      "id": "<cluster-id-2>",
       "name": "Test Cluster",
       "host": "127.0.0.1",
       "port": 1545,
@@ -431,12 +442,12 @@ zbx-1c clusters -c .env.prod --json-output
 📊 Доступные кластеры 1С:
 
 1. Production Cluster
-   ID: f93863ed-3fdb-4e01-a74c-e112c81b053b
+   ID: <cluster-id-1>
    Host: 127.0.0.1:1545
    Status: unknown
 
 2. Test Cluster
-   ID: a1234567-89ab-cdef-0123-456789abcdef
+   ID: <cluster-id-2>
    Host: 127.0.0.1:1545
    Status: unknown
 ```
@@ -445,7 +456,7 @@ zbx-1c clusters -c .env.prod --json-output
 ```json
 [
   {
-    "id": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+    "id": "<cluster-id>",
     "name": "Production Cluster",
     "host": "127.0.0.1",
     "port": 1545,
@@ -475,36 +486,36 @@ zbx-1c clusters -c .env.prod --json-output
 **Примеры:**
 ```bash
 # Получение информационных баз
-zbx-1c infobases f93863ed-3fdb-4e01-a74c-e112c81b053b
+zbx-1c infobases <cluster-id>
 
 # С кавычками (если ID содержит спецсимволы)
-zbx-1c infobases "f93863ed-3fdb-4e01-a74c-e112c81b053b"
+zbx-1c infobases "<cluster-id>"
 
 # Через entry point
-zbx-1c-infobases f93863ed-3fdb-4e01-a74c-e112c81b053b
+zbx-1c-infobases <cluster-id>
 
 # С конфигурацией
-zbx-1c infobases f93863ed-3fdb-4e01-a74c-e112c81b053b -c .env.prod
+zbx-1c infobases <cluster-id> -c .env.prod
 ```
 
 **Пример вывода:**
 ```json
 [
   {
-    "infobase": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-    "name": "Бухгалтерия",
-    "descr": "Бухгалтерия предприятия",
-    "dbms": "MSSQLServer",
-    "dbserver": "sql-server",
-    "dbname": "1C_ACCOUNTING"
+    "infobase": "<infobase-id-1>",
+    "name": "<infobase-name-1>",
+    "descr": "<infobase-description-1>",
+    "dbms": "<dbms-type>",
+    "dbserver": "<db-server-host>",
+    "dbname": "<database-name-1>"
   },
   {
-    "infobase": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "name": "ЗУП",
-    "descr": "Зарплата и управление персоналом",
-    "dbms": "PostgreSQL",
-    "dbserver": "pg-server",
-    "dbname": "1C_ZUP"
+    "infobase": "<infobase-id-2>",
+    "name": "<infobase-name-2>",
+    "descr": "<infobase-description-2>",
+    "dbms": "<dbms-type>",
+    "dbserver": "<db-server-host>",
+    "dbname": "<database-name-2>"
   }
 ]
 ```
@@ -530,10 +541,10 @@ zbx-1c infobases f93863ed-3fdb-4e01-a74c-e112c81b053b -c .env.prod
 **Примеры:**
 ```bash
 # Получение сессий
-zbx-1c sessions f93863ed-3fdb-4e01-a74c-e112c81b053b
+zbx-1c sessions <cluster-id>
 
 # Через entry point
-zbx-1c-sessions f93863ed-3fdb-4e01-a74c-e112c81b053b
+zbx-1c-sessions <cluster-id>
 ```
 
 **Пример вывода:**
@@ -541,20 +552,20 @@ zbx-1c-sessions f93863ed-3fdb-4e01-a74c-e112c81b053b
 [
   {
     "session-id": "1",
-    "user": "ADMIN",
+    "user": "<username>",
     "app": "1CV8C",
-    "infobase": "Бухгалтерия",
-    "host": "192.168.1.100",
+    "infobase": "<infobase-name-1>",
+    "host": "<client-host>",
     "started-at": "2024-01-15T10:30:00",
     "last-active": "2024-01-15T14:25:00",
     "hibernate": "no"
   },
   {
     "session-id": "2",
-    "user": "IVANOV",
+    "user": "<username>",
     "app": "Designer",
-    "infobase": "ЗУП",
-    "host": "192.168.1.101",
+    "infobase": "<infobase-name-2>",
+    "host": "<client-host>",
     "started-at": "2024-01-15T09:00:00",
     "last-active": "2024-01-15T14:20:00",
     "hibernate": "no"
@@ -583,10 +594,10 @@ zbx-1c-sessions f93863ed-3fdb-4e01-a74c-e112c81b053b
 **Примеры:**
 ```bash
 # Получение фоновых заданий
-zbx-1c jobs f93863ed-3fdb-4e01-a74c-e112c81b053b
+zbx-1c jobs <cluster-id>
 
 # Через entry point
-zbx-1c-jobs f93863ed-3fdb-4e01-a74c-e112c81b053b
+zbx-1c-jobs <cluster-id>
 ```
 
 **Пример вывода:**
@@ -594,17 +605,17 @@ zbx-1c-jobs f93863ed-3fdb-4e01-a74c-e112c81b053b
 [
   {
     "job-id": "100",
-    "infobase": "Бухгалтерия",
+    "infobase": "<infobase-name-1>",
     "started-at": "2024-01-15T12:00:00",
     "status": "running",
-    "description": "Обработка документов"
+    "description": "<job-description-1>"
   },
   {
     "job-id": "101",
-    "infobase": "ЗУП",
+    "infobase": "<infobase-name-2>",
     "started-at": "2024-01-15T11:30:00",
     "status": "completed",
-    "description": "Расчет зарплаты"
+    "description": "<job-description-2>"
   }
 ]
 ```
@@ -630,20 +641,20 @@ zbx-1c-jobs f93863ed-3fdb-4e01-a74c-e112c81b053b
 **Примеры:**
 ```bash
 # Метрики конкретного кластера
-zbx-1c metrics f93863ed-3fdb-4e01-a74c-e112c81b053b
+zbx-1c metrics <cluster-id>
 
 # Метрики всех кластеров
 zbx-1c metrics
 
 # Через entry point
-zbx-1c-metrics f93863ed-3fdb-4e01-a74c-e112c81b053b
+zbx-1c-metrics <cluster-id>
 ```
 
 **Пример вывода (один кластер):**
 ```json
 {
   "cluster": {
-    "id": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+    "id": "<cluster-id>",
     "name": "Production Cluster",
     "status": "unknown"
   },
@@ -665,7 +676,7 @@ zbx-1c-metrics f93863ed-3fdb-4e01-a74c-e112c81b053b
 [
   {
     "cluster": {
-      "id": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+      "id": "<cluster-id-1>",
       "name": "Production Cluster",
       "status": "unknown"
     },
@@ -682,7 +693,7 @@ zbx-1c-metrics f93863ed-3fdb-4e01-a74c-e112c81b053b
   },
   {
     "cluster": {
-      "id": "a1234567-89ab-cdef-0123-456789abcdef",
+      "id": "<cluster-id-2>",
       "name": "Test Cluster",
       "status": "unknown"
     },
@@ -741,13 +752,13 @@ UserParameter=zbx1cpy.metrics[*],zbx-1c-metrics $1
 **Примеры:**
 ```bash
 # Статус конкретного кластера
-zbx-1c status f93863ed-3fdb-4e01-a74c-e112c81b053b
+zbx-1c status <cluster-id>
 
 # Через entry point
-zbx-1c-status f93863ed-3fdb-4e01-a74c-e112c81b053b
+zbx-1c-status <cluster-id>
 
 # С конфигурацией
-zbx-1c status f93863ed-3fdb-4e01-a74c-e112c81b053b -c .env.prod
+zbx-1c status <cluster-id> -c .env.prod
 ```
 
 **Пример вывода:**
@@ -792,17 +803,17 @@ UserParameter=zbx1cpy.cluster.status[*],zbx-1c-status $1
 **Примеры:**
 ```bash
 # Полная информация о кластере
-zbx-1c all f93863ed-3fdb-4e01-a74c-e112c81b053b
+zbx-1c all <cluster-id>
 
 # С конфигурацией
-zbx-1c all f93863ed-3fdb-4e01-a74c-e112c81b053b -c .env.prod
+zbx-1c all <cluster-id> -c .env.prod
 ```
 
 **Пример вывода:**
 ```json
 {
   "cluster": {
-    "id": "f93863ed-3fdb-4e01-a74c-e112c81b053b",
+    "id": "<cluster-id>",
     "name": "Production Cluster",
     "host": "127.0.0.1",
     "port": 1545,
@@ -810,14 +821,14 @@ zbx-1c all f93863ed-3fdb-4e01-a74c-e112c81b053b -c .env.prod
   },
   "infobases": [
     {
-      "infobase": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-      "name": "Бухгалтерия"
+      "infobase": "<infobase-id>",
+      "name": "<infobase-name>"
     }
   ],
   "sessions": [
     {
       "session-id": "1",
-      "user": "ADMIN",
+      "user": "<username>",
       "app": "1CV8C"
     }
   ],
@@ -867,16 +878,16 @@ zbx-1c test -c .env.prod
 ```
 🔧 Тестирование подключения к 1С...
 
-📁 RAC path: C:/Program Files/1cv8/8.3.23.1740/bin/rac.exe
+📁 RAC path: C:/Program Files/1cv8/<version>/bin/rac.exe
    ✅ RAC executable found
 
 🌐 RAS: 127.0.0.1:1545
    ✅ RAS is available
 
 📊 Clusters found: 2
-   - Production Cluster (f93863ed-3fdb-4e01-a74c-e112c81b053b)
+   - Production Cluster (<cluster-id-1>)
      ✅ Metrics collected: 15 sessions, 12 active, 3 jobs
-   - Test Cluster (a1234567-89ab-cdef-0123-456789abcdef)
+   - Test Cluster (<cluster-id-2>)
      ✅ Metrics collected: 5 sessions, 3 active, 1 jobs
 
 ✅ Все проверки пройдены успешно
@@ -914,15 +925,15 @@ zbx-1c test -c .env.prod
 **Пример `.env`:**
 ```env
 # Путь к утилите rac
-RAC_PATH=C:/Program Files/1cv8/8.3.23.1740/bin/rac.exe
+RAC_PATH=C:/Program Files/1cv8/<version>/bin/rac.exe
 
 # Хост и порт RAS-сервиса
 RAC_HOST=127.0.0.1
 RAC_PORT=1545
 
 # Параметры аутентификации в кластере (опционально)
-USER_NAME=admin
-USER_PASS=password
+USER_NAME=<username>
+USER_PASS=<password>
 
 # Таймаут подключения к RAS (секунды)
 RAC_TIMEOUT=30
@@ -973,24 +984,24 @@ uv run zbx-1c metrics
 
 ```bash
 # Через entry points
-zbx-1c metrics f93863ed-3fdb-4e01-a74c-e112c81b053b
-zbx-1c sessions f93863ed-3fdb-4e01-a74c-e112c81b053b
-zbx-1c jobs f93863ed-3fdb-4e01-a74c-e112c81b053b
+zbx-1c metrics <cluster-id>
+zbx-1c sessions <cluster-id>
+zbx-1c jobs <cluster-id>
 
 # Через uv
-uv run zbx-1c metrics f93863ed-3fdb-4e01-a74c-e112c81b053b
-uv run zbx-1c sessions f93863ed-3fdb-4e01-a74c-e112c81b053b
-uv run zbx-1c jobs f93863ed-3fdb-4e01-a74c-e112c81b053b
+uv run zbx-1c metrics <cluster-id>
+uv run zbx-1c sessions <cluster-id>
+uv run zbx-1c jobs <cluster-id>
 ```
 
 #### Полная информация о кластере
 
 ```bash
 # Через entry points
-zbx-1c all f93863ed-3fdb-4e01-a74c-e112c81b053b
+zbx-1c all <cluster-id>
 
 # Через uv
-uv run zbx-1c all f93863ed-3fdb-4e01-a74c-e112c81b053b
+uv run zbx-1c all <cluster-id>
 ```
 
 #### Тестирование подключения
@@ -1079,15 +1090,23 @@ uvicorn zbx_1c.api.main:app --reload --host 0.0.0.0 --port 8000
 | `zbx1cpy.cluster.active_sessions` | Количество **активных** сессий | **Двухуровневый критерий**:<br>1️⃣ **last-active-at ≤ порог** → активна<br>2️⃣ **last-active-at > порог** → строгая проверка:<br>   • `hibernate == "no"`<br>   • `calls-last-5min >= 1`<br>   • `bytes-last-5min >= 1024 байт`<br><br>**Пороги по типам**:<br>• `Designer` (Конфигуратор): **10 минут**<br>• Остальные: **5 минут** |
 | `zbx1cpy.cluster.total_jobs` | Общее количество фоновых заданий | Все задания из `rac session list` с `app-id` = BackgroundJob / SystemBackgroundJob / JobScheduler |
 | `zbx1cpy.cluster.active_jobs` | Количество активных фоновых заданий | **По типу задания**:<br>• `JobScheduler`: **всегда активен**<br>• `SystemBackgroundJob`: `hibernate == "no"`<br>• `BackgroundJob`: `hibernate == "no"` |
-| `zbx1cpy.cluster.session_limit` | Лимит сессий (сумма по ИБ) | `max-connections` по всем ИБ |
+| `zbx1cpy.cluster.long_running_jobs` | Количество длительных фоновых заданий | Задания типов:<br>• `BackgroundJob`: фоновые задания пользователей<br>• `SystemBackgroundJob`: системные фоновые задания<br><br>Исключение: `JobScheduler` не считается длительным |
+| `zbx1cpy.cluster.stuck_jobs` | Количество «зависших» заданий | Задание считается зависшим, если:<br>1. Тип: `BackgroundJob` или `SystemBackgroundJob`<br>2. Статус: активное (`hibernate == "no"`)<br>3. Время выполнения: **> 30 минут** |
+| `zbx1cpy.cluster.max_job_duration` | Максимальное время выполнения заданий | Максимальная длительность среди активных заданий (в минутах) |
+| `zbx1cpy.cluster.session_limit` | Лимит сессий (сумма по ИБ) | Берется из `SESSION_LIMIT` в `.env` (количество лицензий) |
 | `zbx1cpy.cluster.session_percent` | Процент заполнения сессий | `total_sessions / session_limit * 100` |
 | `zbx1cpy.cluster.working_servers` | Количество рабочих серверов | Серверы со статусом `working` |
 | `zbx1cpy.cluster.total_servers` | Общее количество серверов | Все серверы кластера |
+| `zbx1cpy.cluster.server_memory_used` | Фактическое использование памяти | Суммарная память всех процессов rphost (КБ) |
+| `zbx1cpy.cluster.server_memory_limit` | Лимит памяти кластера | Лимит памяти из настроек рабочих серверов (КБ). `0` = лимит не задан |
+| `zbx1cpy.cluster.server_memory_percent` | Процент использования памяти | `(server_memory_used / server_memory_limit) * 100`. `0` = лимит не задан |
+| `zbx1cpy.cluster.memory_limit_set` | Флаг заданного лимита памяти | `1` = лимит задан, `0` = лимит не задан |
+| `zbx1cpy.cluster.servers_restarted_recently` | Количество перезапусков серверов | Серверы, перезапущенные за последние 5 минут |
 
 > **Примечание:** Метрика `active_sessions` использует **двухуровневый критерий** активности:
 > 1. **last-active-at ≤ порог** → сессия активна (быстрая проверка)
 > 2. **last-active-at > порог** → строгая проверка (hibernate + calls + bytes)
-> 
+>
 > **Пороги last-active-at:**
 > - **Designer (Конфигуратор)**: 10 минут (разработчик может читать код без вызовов)
 > - **Остальные**: 5 минут (стандартная сессия)
@@ -1176,14 +1195,14 @@ sudo systemctl restart zabbix-agent
 
 ```bash
 # Windows
-& "C:\Program Files\Zabbix Agent 2\zabbix_get.exe" -s localhost -k "zbx1cpy.clusters.discovery"
-& "C:\Program Files\Zabbix Agent 2\zabbix_get.exe" -s localhost -k "zbx1cpy.cluster.status[f93863ed-3fdb-4e01-a74c-e112c81b053b]"
-& "C:\Program Files\Zabbix Agent 2\zabbix_get.exe" -s localhost -k "zbx1cpy.metrics[f93863ed-3fdb-4e01-a74c-e112c81b053b]"
+& "<ZABBIX_AGENT_DIR>\zabbix_get.exe" -s localhost -k "zbx1cpy.clusters.discovery"
+& "<ZABBIX_AGENT_DIR>\zabbix_get.exe" -s localhost -k "zbx1cpy.cluster.status[<cluster_id>]"
+& "<ZABBIX_AGENT_DIR>\zabbix_get.exe" -s localhost -k "zbx1cpy.metrics[<cluster_id>]"
 
 # Linux
 zabbix_get -s localhost -k "zbx1cpy.clusters.discovery"
-zabbix_get -s localhost -k "zbx1cpy.cluster.status[f93863ed-3fdb-4e01-a74c-e112c81b053b]"
-zabbix_get -s localhost -k "zbx1cpy.metrics[f93863ed-3fdb-4e01-a74c-e112c81b053b]"
+zabbix_get -s localhost -k "zbx1cpy.cluster.status[<cluster_id>]"
+zabbix_get -s localhost -k "zbx1cpy.metrics[<cluster_id>]"
 ```
 
 ### UserParameter
@@ -1196,19 +1215,19 @@ zabbix_get -s localhost -k "zbx1cpy.metrics[f93863ed-3fdb-4e01-a74c-e112c81b053b
 # cd /d обеспечивает корректную кодировку UTF-8
 
 # LLD Discovery: обнаружение кластеров
-UserParameter=zbx1cpy.clusters.discovery,cd /d "g:\Automation\zbx-1c-py" && "g:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c discovery
+UserParameter=zbx1cpy.clusters.discovery,cd /d "<PROJECT_DIR>" && "<PYTHON_EXE>" -m zbx_1c discovery
 
 # Статус кластера (для Item Prototype)
-UserParameter=zbx1cpy.cluster.status[*],cd /d "g:\Automation\zbx-1c-py" && "g:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c status $1
+UserParameter=zbx1cpy.cluster.status[*],cd /d "<PROJECT_DIR>" && "<PYTHON_EXE>" -m zbx_1c status $1
 
 # Метрики кластера
-UserParameter=zbx1cpy.metrics[*],cd /d "g:\Automation\zbx-1c-py" && "g:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c metrics $1
+UserParameter=zbx1cpy.metrics[*],cd /d "<PROJECT_DIR>" && "<PYTHON_EXE>" -m zbx_1c metrics $1
 
 # Метрики всех кластеров (для Master Item)
-UserParameter=zbx1cpy.metrics.all,cd /d "g:\Automation\zbx-1c-py" && "g:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c metrics
+UserParameter=zbx1cpy.metrics.all,cd /d "<PROJECT_DIR>" && "<PYTHON_EXE>" -m zbx_1c metrics
 
 # Проверка RAS
-UserParameter=zbx1cpy.ras.check,cd /d "g:\Automation\zbx-1c-py" && "g:\Automation\zbx-1c-py\.venv\Scripts\python.exe" -m zbx_1c check-ras
+UserParameter=zbx1cpy.ras.check,cd /d "<PROJECT_DIR>" && "<PYTHON_EXE>" -m zbx_1c check-ras
 ```
 
 **Для Linux** используйте `zbx-1c-generate-userparam --force-os linux`:
