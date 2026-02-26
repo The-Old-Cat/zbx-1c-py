@@ -1140,6 +1140,48 @@ uvicorn zbx_1c.api.main:app --reload --host 0.0.0.0 --port 8000
 
 ### Настройка Zabbix Agent
 
+#### Пример конфигурации Zabbix Agent
+
+Пример файла конфигурации Zabbix Agent представлен в [`zabbix/zabbix_agentd.conf.example`](zabbix/zabbix_agentd.conf.example).
+
+**Основные параметры:**
+
+```conf
+# Путь к файлу лога
+LogFile=C:\Program Files\Zabbix Agent\zabbix_agentd.log
+
+# Адрес Zabbix сервера
+Server=127.0.0.1,<IP-АДРЕС_ВАШЕГО_СЕРВЕРА_ZABBIX>
+
+# Адрес для активных проверок
+ServerActive=<IP-АДРЕС_ВАШЕГО_СЕРВЕРА_ZABBIX>
+
+# Имя хоста (должно совпадать с Zabbix)
+Hostname=<ИМЯ_ВАШЕГО_ХОСТА_В_ZABBIX>
+
+# Таймаут выполнения проверок (увеличить для скриптов 1С)
+Timeout=30
+
+# Разрешить выполнение команд
+AllowKey=system.run[*]
+
+# Директория для дополнительных конфигов (включая userparameter_1c.conf)
+Include=C:\Program Files\Zabbix Agent\zabbix_agentd.d
+```
+
+**Рекомендуемые настройки для мониторинга 1С:**
+
+| Параметр | Значение | Описание |
+|----------|----------|----------|
+| `Timeout` | `30` | Увеличенный таймаут для выполнения скриптов rac |
+| `LogRemoteCommands` | `1` | Логирование выполняемых команд (для отладки) |
+| `DebugLevel` | `3` | Уровень логирования для отладки проблем |
+| `Include` | `zabbix_agentd.d\` | Директория для подключения UserParameter |
+
+**Полный пример** см. в файле [`zabbix/zabbix_agentd.conf.example`](zabbix/zabbix_agentd.conf.example).
+
+---
+
 #### 1. Установка пакета
 
 **Вариант 1: Через uv (рекомендуется)**
