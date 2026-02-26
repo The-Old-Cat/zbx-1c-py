@@ -43,18 +43,6 @@ zabbix_export:
             - "Total jobs growth > 100": резкий рост очереди заданий за 5 минут
             - "Background jobs stall detected": более 80% фоновых заданий активны
             - "Server memory usage > 85%": память Рабочих процессов превышает 85% (только если memory_limit_set=1)
-
-        Рекомендации для дежурной смены:
-        - При срабатывании триггеров проверять нагрузку на серверы и очереди фоновых заданий
-        - Контролировать лицензии при превышении 90% использования сессий
-        - Проверять доступность серверов кластера при недоступности кластера
-        - Все замечания фиксировать в журнале дежурной смены
-
-        Графики дашборда:
-        - Total sessions, Active sessions: оценка нагрузки пользователей
-        - Total jobs, Active jobs: контроль фоновых заданий и очередей
-        - Server memory used: мониторинг памяти Рабочих процессов
-        - Servers restarted recently: выявление аварийных перезапусков
       groups:
         - name: "1C Servers"
       items:
@@ -125,7 +113,7 @@ zabbix_export:
         - uuid: 1cd3db8d376344eaa6d42fe2f3eade5e
           name: "1C Clusters Discovery"
           key: zbx1cpy.clusters.discovery
-          delay: 1h
+          delay: 10m
           description: |
             Discovery rule для обнаружения всех кластеров 1С.
             Создаёт dependent items и триггеры для каждого кластера.
@@ -138,12 +126,12 @@ zabbix_export:
               trends: "0"
               description: |
                 Количество реально выполняющихся фоновых заданий в кластере.
-                
+
                 Критерии активности по типам заданий:
                 - JobScheduler: всегда активен (планировщик регламентных заданий)
                 - SystemBackgroundJob: активен, если hibernate = "no"
                 - BackgroundJob: активен, если hibernate = "no"
-                
+
                 Используется для анализа нагрузки и обнаружения зависших заданий.
               preprocessing:
                 - type: JSONPATH
@@ -176,7 +164,7 @@ zabbix_export:
               trends: "0"
               description: |
                 Количество активных сессий в кластере за последние 5 минут.
-                
+
                 Критерии активности (двухуровневый):
                 1. last-active-at ≤ порог → сессия активна:
                    - Designer (Конфигуратор): 10 минут
@@ -185,7 +173,7 @@ zabbix_export:
                    - hibernate = "no"
                    - calls-last-5min ≥ 1
                    - bytes-last-5min ≥ 1024 байт
-                
+
                 Используется для мониторинга нагрузки на кластер.
               preprocessing:
                 - type: JSONPATH
@@ -204,11 +192,11 @@ zabbix_export:
               trends: "0"
               description: |
                 Количество длительных фоновых заданий в кластере.
-                
+
                 Длительные задания — это задания типов:
                 - BackgroundJob: фоновые задания пользователей
                 - SystemBackgroundJob: системные фоновые задания
-                
+
                 Исключение: JobScheduler (планировщик) не считается длительным заданием.
               preprocessing:
                 - type: JSONPATH
@@ -353,7 +341,7 @@ zabbix_export:
               key: "zbx1cpy.cluster.session_limit[{#CLUSTER.ID}]"
               delay: "0"
               trends: "0"
-              units: sessions
+              units: "session licenses"
               description: "Лимит сессий кластера. Берется из SESSION_LIMIT в .env (количество лицензий)."
               preprocessing:
                 - type: JSONPATH
@@ -423,12 +411,12 @@ zabbix_export:
               trends: "0"
               description: |
                 Количество «зависших» фоновых заданий в кластере.
-                
+
                 Задание считается зависшим, если выполняются все условия:
                 1. Тип задания: BackgroundJob или SystemBackgroundJob (длительные задания)
                 2. Статус: активное (hibernate = "no")
                 3. Время выполнения: > 30 минут
-                
+
                 Используется для выявления проблемных заданий, требующих вмешательства.
               preprocessing:
                 - type: JSONPATH
@@ -490,6 +478,7 @@ zabbix_export:
               key: "zbx1cpy.cluster.total_sessions[{#CLUSTER.ID}]"
               delay: "0"
               trends: "0"
+              units: sessions
               description: "Общее количество сессий в кластере (все подключения пользователей)."
               preprocessing:
                 - type: JSONPATH
@@ -577,12 +566,13 @@ zabbix_export:
         - uuid: 72059c37f0284fde9443f6a2069c05fc
           name: "1C Clusters"
           pages:
-            - name: "1C Clusters Discovery"
-              display_period: "10"
+            - name: "1C Background jobs and sessions"
+              display_period: "3600"
               widgets:
                 - type: graphprototype
                   width: "36"
                   height: "4"
+                  hide_header: "YES"
                   fields:
                     - type: INTEGER
                       name: columns
@@ -591,10 +581,10 @@ zabbix_export:
                       name: itemid.0
                       value:
                         host: "1C Enterprise Monitoring"
-                        key: "zbx1cpy.cluster.server_memory_used[{#CLUSTER.ID}]"
+                        key: "zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]"
                     - type: STRING
                       name: reference
-                      value: ENYXS
+                      value: KBPWH
                     - type: INTEGER
                       name: source_type
                       value: "3"
@@ -602,25 +592,7 @@ zabbix_export:
                   "y": "4"
                   width: "36"
                   height: "4"
-                  fields:
-                    - type: INTEGER
-                      name: columns
-                      value: "1"
-                    - type: ITEM_PROTOTYPE
-                      name: itemid.0
-                      value:
-                        host: "1C Enterprise Monitoring"
-                        key: "zbx1cpy.cluster.servers_restarted_recently[{#CLUSTER.ID}]"
-                    - type: STRING
-                      name: reference
-                      value: EWROF
-                    - type: INTEGER
-                      name: source_type
-                      value: "3"
-                - type: graphprototype
-                  "y": "8"
-                  width: "36"
-                  height: "4"
+                  hide_header: "YES"
                   fields:
                     - type: INTEGER
                       name: columns
@@ -640,26 +612,7 @@ zabbix_export:
                   x: "36"
                   width: "36"
                   height: "4"
-                  fields:
-                    - type: INTEGER
-                      name: columns
-                      value: "1"
-                    - type: ITEM_PROTOTYPE
-                      name: itemid.0
-                      value:
-                        host: "1C Enterprise Monitoring"
-                        key: "zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]"
-                    - type: STRING
-                      name: reference
-                      value: KBPWH
-                    - type: INTEGER
-                      name: source_type
-                      value: "3"
-                - type: graphprototype
-                  x: "36"
-                  "y": "4"
-                  width: "36"
-                  height: "4"
+                  hide_header: "YES"
                   fields:
                     - type: INTEGER
                       name: columns
@@ -677,9 +630,10 @@ zabbix_export:
                       value: "3"
                 - type: graphprototype
                   x: "36"
-                  "y": "8"
+                  "y": "4"
                   width: "36"
                   height: "4"
+                  hide_header: "YES"
                   fields:
                     - type: INTEGER
                       name: columns
@@ -695,3 +649,77 @@ zabbix_export:
                     - type: INTEGER
                       name: source_type
                       value: "3"
+            - name: "1C Process memory"
+              display_period: "3600"
+              widgets:
+                - type: graphprototype
+                  width: "36"
+                  height: "4"
+                  hide_header: "YES"
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: "1"
+                    - type: ITEM_PROTOTYPE
+                      name: itemid.0
+                      value:
+                        host: "1C Enterprise Monitoring"
+                        key: "zbx1cpy.cluster.server_memory_used[{#CLUSTER.ID}]"
+                    - type: STRING
+                      name: reference
+                      value: OCDNJ
+                    - type: INTEGER
+                      name: source_type
+                      value: "3"
+                - type: graph
+                  "y": "4"
+                  width: "36"
+                  height: "4"
+                  hide_header: "YES"
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: "1C Enterprise Monitoring"
+                        key: zbx1cpy.memory.ragent
+                    - type: STRING
+                      name: reference
+                      value: XXJPB
+                    - type: INTEGER
+                      name: source_type
+                      value: "1"
+                - type: graph
+                  x: "36"
+                  width: "36"
+                  height: "4"
+                  hide_header: "YES"
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: "1C Enterprise Monitoring"
+                        key: zbx1cpy.memory.rphost
+                    - type: STRING
+                      name: reference
+                      value: ZLRQP
+                    - type: INTEGER
+                      name: source_type
+                      value: "1"
+                - type: graph
+                  x: "36"
+                  "y": "4"
+                  width: "36"
+                  height: "4"
+                  hide_header: "YES"
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: "1C Enterprise Monitoring"
+                        key: zbx1cpy.memory.rmngr
+                    - type: STRING
+                      name: reference
+                      value: YNZKW
+                    - type: INTEGER
+                      name: source_type
+                      value: "1"
