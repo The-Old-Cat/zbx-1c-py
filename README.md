@@ -970,7 +970,7 @@ zbx-1c-techjournal --period 10
 {
   "timestamp": "2024-01-15T14:30:00",
   "period_seconds": 300,
-  "logs_base_path": "G:/1c_log",
+  "logs_base_path": "<PATH_TO_LOGS>",
   "total_events": 42,
   "critical_events": 5,
   "errors.count": 3,
@@ -1526,7 +1526,11 @@ pyright src
    Замените переменные `{{LOG_BASE}}` и `{{LOG_ANALYTICS}}` на реальные пути:
 
    ```xml
-   <log location="G:/1c_log/core" history="24">
+   <!-- Windows -->
+   <log location="C:/1c_log/core" history="24">
+   
+   <!-- Linux -->
+   <log location="/var/log/1c/core" history="24">
    ```
 
    Или используйте переменные окружения для подстановки.
@@ -1576,16 +1580,29 @@ zbx-1c techjournal send --dry-run
 
 ```env
 # Путь к логам техжурнала
-TECHJOURNAL_LOG_BASE=G:/1c_log
-TECHJOURNAL_LOG_ANALYTICS=G:/1c_log_analytics
+# Windows: TECHJOURNAL_LOG_BASE=C:/1c_log
+# Linux:   TECHJOURNAL_LOG_BASE=/var/log/1c
+TECHJOURNAL_LOG_BASE=<PATH_TO_LOGS>
+
+# Путь к аналитическим логам
+# Windows: TECHJOURNAL_LOG_ANALYTICS=C:/1c_log_analytics
+# Linux:   TECHJOURNAL_LOG_ANALYTICS=/var/log/1c_analytics
+TECHJOURNAL_LOG_ANALYTICS=<PATH_TO_ANALYTICS>
 
 # Период сбора метрик (минуты)
 TECHJOURNAL_PERIOD_MINUTES=5
 
 # Zabbix
-ZABBIX_SERVER=127.0.0.1
+# Windows: ZABBIX_SERVER=127.0.0.1
+# Linux:   ZABBIX_SERVER=zabbix.example.com
+ZABBIX_SERVER=<ZABBIX_SERVER>
 ZABBIX_PORT=10051
-ZABBIX_SENDER_PATH=/usr/bin/zabbix_sender
+
+# Путь к утилите zabbix_sender (опционально)
+# Windows: ZABBIX_SENDER_PATH=C:/Program Files/Zabbix Agent/zabbix_sender.exe
+# Linux:   ZABBIX_SENDER_PATH=/usr/bin/zabbix_sender
+# ZABBIX_SENDER_PATH=
+
 ZABBIX_USE_API=false
 ```
 

@@ -1,9 +1,13 @@
 """
 Скрипт для тестирования команды session list
+
+ПРИМЕЧАНИЕ: Этот файл содержит примеры тестов и не должен использоваться
+в production. Для реального тестирования используйте pytest с fixtures.
 """
 
 import subprocess
 import sys
+import os
 from pathlib import Path
 
 # Добавляем путь к родительскому каталогу в sys.path для импорта
@@ -23,65 +27,82 @@ except ImportError:
     sys.exit(1)
 
 def test_session_list_command():
-    """Тестируем команду session list"""
+    """Тестируем команду session list
     
+    Примечание: Используйте переменные окружения для чувствительных данных:
+    - TEST_CLUSTER_USER
+    - TEST_CLUSTER_PWD  
+    - TEST_CLUSTER_ID
+    """
+    
+    # Получаем тестовые данные из переменных окружения или используем заглушки
+    cluster_user = os.environ.get("TEST_CLUSTER_USER", "test_user")
+    cluster_pwd = os.environ.get("TEST_CLUSTER_PWD", "test_password")
+    cluster_id = os.environ.get("TEST_CLUSTER_ID", "00000000-0000-0000-0000-000000000000")
+
     print("=== Тест команды session list ===")
     print(f"Путь к rac: {settings.rac_path}")
     print(f"Адрес RAS: {settings.rac_host}:{settings.rac_port}")
-    print(f"ID кластера: f93863ed-3fdb-4e01-a74c-e112c81b053b")
-    
+    print(f"ID кластера: {cluster_id}")
+
     # Пробуем разные форматы команды session list
     commands_to_test = [
         # Формат 1: --cluster как отдельный параметр
         [
             settings.rac_path,
-            "session", 
-            "list", 
+            "session",
+            "list",
             "--cluster",
-            "f93863ed-3fdb-4e01-a74c-e112c81b053b",
-            "--cluster-user=new_1cPin_KA",
-            "--cluster-pwd=!Admin1c!159753",
+            cluster_id,
+            "--cluster-user",
+            cluster_user,
+            "--cluster-pwd",
+            cluster_pwd,
             "localhost:1545"
         ],
         # Формат 2: --cluster как один параметр
         [
             settings.rac_path,
-            "session", 
-            "list", 
-            "--cluster=f93863ed-3fdb-4e01-a74c-e112c81b053b",
-            "--cluster-user=new_1cPin_KA",
-            "--cluster-pwd=!Admin1c!159753",
+            "session",
+            "list",
+            f"--cluster={cluster_id}",
+            "--cluster-user",
+            cluster_user,
+            "--cluster-pwd",
+            cluster_pwd,
             "localhost:1545"
         ],
         # Формат 3: без --cluster (может быть, для session list он не нужен?)
         [
             settings.rac_path,
-            "session", 
+            "session",
             "list",
-            "--cluster-user=new_1cPin_KA",
-            "--cluster-pwd=!Admin1c!159753",
+            "--cluster-user",
+            cluster_user,
+            "--cluster-pwd",
+            cluster_pwd,
             "localhost:1545"
         ]
     ]
-    
+
     for i, command in enumerate(commands_to_test, 1):
         print(f"\n--- Тест {i}: {' '.join(command)} ---")
-        
+
         try:
             result = subprocess.run(command, capture_output=True, text=False, timeout=15)
-            
+
             print(f"Код возврата: {result.returncode}")
-            
+
             if result.stdout:
                 print("STDOUT:")
                 stdout_text = decode_output(result.stdout)
                 print(stdout_text)
-            
+
             if result.stderr:
                 print("STDERR:")
                 stderr_text = decode_output(result.stderr)
                 print(stderr_text)
-                
+
         except subprocess.TimeoutExpired:
             print("Таймаут выполнения команды")
         except Exception as e:

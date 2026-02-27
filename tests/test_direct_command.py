@@ -1,5 +1,7 @@
 """
 Тест для проверки команды rac напрямую
+
+ПРИМЕЧАНИЕ: Используйте переменные окружения для чувствительных данных.
 """
 import subprocess
 import sys
@@ -15,22 +17,23 @@ from src.zbx_1c.utils.converters import decode_output, parse_rac_output
 def test_direct_command():
     print("Тестирование прямой команды rac.exe")
     print("="*60)
-    
-    cluster_id = "f93863ed-3fdb-4e01-a74c-e112c81b053b"
+
+    # Получаем ID кластера из переменных окружения или используем заглушку
+    cluster_id = os.environ.get("TEST_CLUSTER_ID", "00000000-0000-0000-0000-000000000000")
     ras_address = f"{settings.rac_host}:{settings.rac_port}"
-    
+
     print(f"Команда будет выполнена для:")
     print(f"  Cluster ID: {cluster_id}")
     print(f"  RAS Address: {ras_address}")
     print(f"  User: {settings.user_name}")
     print()
-    
+
     # Команда, аналогичная той, что используется в модуле
     command = [
         settings.rac_path,
-        "infobase", 
-        "summary", 
-        "list", 
+        "infobase",
+        "summary",
+        "list",
         f"--cluster={cluster_id}"
     ]
 
@@ -45,22 +48,22 @@ def test_direct_command():
 
     print(f"Выполняемая команда: {' '.join(command)}")
     print()
-    
+
     try:
         result = subprocess.run(command, capture_output=True, check=False, text=False, timeout=15)
 
         print(f"Return code: {result.returncode}")
-        
+
         if result.stdout:
             print("STDOUT (raw length):", len(result.stdout))
             decoded_text = decode_output(result.stdout)
             print("STDOUT (decoded):")
-            print(repr(decoded_text))  # Показываем в виде repr для видимости всех символов
+            print(repr(decoded_text))
             print()
             print("STDOUT (formatted):")
             print(decoded_text)
             print()
-            
+
             # Парсим вывод
             infobases = parse_rac_output(decoded_text)
             print(f"Парсер нашел {len(infobases)} информационных баз:")
@@ -70,14 +73,14 @@ def test_direct_command():
                 print(f"  [{i+1}] {name} (ID: {infobase_id})")
         else:
             print("STDOUT пустой")
-        
+
         if result.stderr:
             print("STDERR:")
             stderr_text = decode_output(result.stderr)
             print(stderr_text)
         else:
             print("STDERR пустой")
-            
+
     except Exception as e:
         print(f"Ошибка при выполнении команды: {e}")
 

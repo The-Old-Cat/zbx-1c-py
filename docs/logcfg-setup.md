@@ -24,13 +24,19 @@
 
 ```ini
 # Базовый путь для логов Zabbix
-1C_LOG_BASE=G:/1c_log/zabbix
+# Windows: 1C_LOG_BASE=C:/1c_log/zabbix
+# Linux:   1C_LOG_BASE=/var/log/1c/zabbix
+1C_LOG_BASE=<PATH_TO_LOGS>
 
 # Путь для аналитических логов
-1C_LOG_ANALYTICS=G:/1c_log/analytics
+# Windows: 1C_LOG_ANALYTICS=C:/1c_log/analytics
+# Linux:   1C_LOG_ANALYTICS=/var/log/1c/analytics
+1C_LOG_ANALYTICS=<PATH_TO_ANALYTICS>
 
 # Путь к целевому logcfg.xml на сервере 1С
-1C_LOGCFG_TARGET=C:/Program Files/1cv8/conf/logcfg.xml
+# Windows: 1C_LOGCFG_TARGET=C:/Program Files/1cv8/conf/logcfg.xml
+# Linux:   1C_LOGCFG_TARGET=/etc/1c/1cv8/conf/logcfg.xml
+1C_LOGCFG_TARGET=<PATH_TO_LOGCFG>
 
 # Путь к шаблону (относительно проекта)
 LOGCFG_TEMPLATE=config/logcfg.xml
@@ -118,7 +124,7 @@ schtasks /Create /TN "1C_TechLog_Cleanup" /TR "zbx-1c-cleanup-logs --days 7" /SC
 
 ```powershell
 # Windows
-dir G:\1c_log\zabbix\errors
+dir C:\1c_log\zabbix\errors
 
 # Linux
 ls -la /var/log/1c/zabbix/errors/
@@ -129,7 +135,7 @@ ls -la /var/log/1c/zabbix/errors/
 ## 📁 Структура файлов
 
 ```
-g:\Automation\zbx-1c-py\
+<PROJECT_DIR>/
 ├── config/
 │   └── logcfg.xml              # Шаблон конфигурации (в git)
 ├── scripts/

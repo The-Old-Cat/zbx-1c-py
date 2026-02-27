@@ -55,12 +55,21 @@ cp .env.example .env
 Отредактируйте `.env`:
 
 ```env
-RAC_PATH=C:/Program Files/1cv8/<version>/bin/rac.exe
+# RAC_PATH - путь к утилите rac
+# Windows: RAC_PATH=C:/Program Files/1cv8/<version>/bin/rac.exe
+# Linux:   RAC_PATH=/opt/1c/v8.3/<version>/rac
+RAC_PATH=<PATH_TO_RAC>
+
 RAC_HOST=127.0.0.1
 RAC_PORT=1545
 USER_NAME=<username>
 USER_PASS=<password>
-LOG_PATH=<path-to-logs>
+
+# LOG_PATH - путь для логов проекта
+# Windows: LOG_PATH=./logs
+# Linux:   LOG_PATH=/var/log/zbx-1c
+LOG_PATH=<PATH_TO_LOGS>
+
 DEBUG=False
 SESSION_LIMIT=100
 ```
