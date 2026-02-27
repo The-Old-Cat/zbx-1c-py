@@ -65,6 +65,8 @@ zbx-1c-clusters = "zbx_1c.cli.commands:list_clusters"
 zbx-1c-all = "zbx_1c.cli.commands:get_all"
 zbx-1c-memory = "zbx_1c.cli.commands:get_process_memory"
 zbx-1c-generate-userparam = "zbx_1c.cli.generate_userparam:main"
+zbx-1c-techjournal = "zbx_1c.cli.commands:techjournal_cmd"
+
 [project.urls]
 Homepage = "https://github.com/your-repo/zbx-1c"
 Repository = "https://github.com/your-repo/zbx-1c"

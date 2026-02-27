@@ -17,6 +17,7 @@
 - ✅ Сбор метрик: сессии, активные сессии, фоновые задания
 - ✅ Мониторинг информационных баз с детальной статистикой
 - ✅ Проверка доступности RAS сервиса
+- ✅ **Мониторинг через техжурнал 1С** (ошибки, блокировки, долгие вызовы, медленный SQL)
 - ✅ Поддержка аутентификации в кластере 1С
 - ✅ Логирование через `loguru` с настройкой уровня
 - ✅ Конфигурация через файл `.env`
@@ -909,6 +910,111 @@ zbx-1c test -c .env.prod
 
 ---
 
+#### `techjournal` — Мониторинг техжурнала 1С
+
+Сбор метрик из логов техжурнала 1С (ошибки, блокировки, долгие вызовы, медленный SQL).
+
+**Синоним:** `zbx-1c-techjournal`
+
+**Опции:**
+| Опция | Краткая | Описание | По умолчанию |
+|-------|---------|----------|--------------|
+| `--config` | `-c` | Путь к файлу конфигурации `.env` | `.env` |
+| `--period` | `-p` | Период сбора метрик (минуты) | `5` |
+| `--json-output` | — | Вывод в формате JSON | `false` |
+
+**Примеры:**
+```bash
+# Текстовая сводка
+zbx-1c techjournal
+
+# JSON вывод
+zbx-1c techjournal --json-output
+
+# Сбор метрик за 15 минут
+zbx-1c techjournal --period 15
+
+# Через entry point
+zbx-1c-techjournal --period 10
+```
+
+**Пример вывода (текст):**
+```
+============================================================
+МОНИТОРИНГ ТЕХЖУРНАЛА 1С
+============================================================
+Период: 5 мин
+Время сбора: 2024-01-15 14:30:00
+------------------------------------------------------------
+Всего событий: 42
+Критичные события: 5
+------------------------------------------------------------
+СОБЫТИЯ:
+  Ошибки (EXCP):        3
+  Предупреждения (ATTN): 2
+  Deadlock (TDEADLOCK): 1
+  Timeout (TTIMEOUT):   1
+  Блокировки (TLOCK):   5
+  Долгие вызовы (CALL): 15
+  Медленный SQL:        15
+  События кластера:     0
+  Админ.события:        0
+  └─ Средняя длительность блокировок: 650.5 мс
+  └─ Средняя длительность вызовов: 320.25 мс
+  └─ Средняя длительность SQL: 125.8 мс
+============================================================
+```
+
+**Пример вывода (JSON):**
+```json
+{
+  "timestamp": "2024-01-15T14:30:00",
+  "period_seconds": 300,
+  "logs_base_path": "G:/1c_log",
+  "total_events": 42,
+  "critical_events": 5,
+  "errors.count": 3,
+  "errors.users": 2,
+  "errors.avg_duration_ms": 0.0,
+  "warnings.count": 2,
+  "deadlocks.count": 1,
+  "timeouts.count": 1,
+  "long_locks.count": 5,
+  "long_locks.avg_duration_ms": 650.5,
+  "long_calls.count": 15,
+  "long_calls.avg_duration_ms": 320.25,
+  "slow_sql.count": 15,
+  "slow_sql.avg_duration_ms": 125.8,
+  "cluster_events.count": 0,
+  "admin_events.count": 0
+}
+```
+
+**Собираемые метрики:**
+
+| Метрика | Описание |
+|---------|----------|
+| `total_events` | Общее количество событий |
+| `critical_events` | Критичные события (EXCP, TDEADLOCK, TTIMEOUT) |
+| `errors.count` | Количество ошибок |
+| `errors.users` | Количество уникальных пользователей с ошибками |
+| `warnings.count` | Количество предупреждений |
+| `deadlocks.count` | Количество deadlock'ов |
+| `timeouts.count` | Количество таймаутов |
+| `long_locks.count` | Количество длительных блокировок (>500 мс) |
+| `long_locks.avg_duration_ms` | Средняя длительность блокировок |
+| `long_calls.count` | Количество долгих вызовов (>200 мс) |
+| `long_calls.avg_duration_ms` | Средняя длительность вызовов |
+| `slow_sql.count` | Количество медленных SQL-запросов (>80 мс) |
+| `slow_sql.avg_duration_ms` | Средняя длительность SQL-запросов |
+
+**Использование в Zabbix:**
+```ini
+UserParameter=zbx1cpy.techjournal[*],zbx-1c-techjournal --json-output
+```
+
+---
+
 ### 🔧 Общие опции для всех команд
 
 | Опция | Краткая | Описание | По умолчанию |
@@ -1389,6 +1495,141 @@ pip-audit
 # Проверка кода
 ruff check src
 pyright src
+```
+
+---
+
+## 📓 Мониторинг через техжурнал 1С
+
+### 📖 Описание
+
+Модуль мониторинга через техжурнал 1С предоставляет возможность сбора метрик из логов техжурнала 
+и отправки их в Zabbix. Это позволяет отслеживать:
+
+- **Ошибки (EXCP)** — критичные ошибки платформы 1С
+- **Предупреждения (ATTN)** — предупреждения и заметки
+- **Блокировки (TLOCK, TDEADLOCK, TTIMEOUT)** — длительные блокировки, deadlock'и, таймауты
+- **Долгие вызовы (CALL)** — вызовы методов с длительностью >200 мс
+- **Медленный SQL (SDBL, DBMSSQL)** — медленные SQL-запросы >80 мс
+- **События кластера (CLSTR, ADMIN)** — события управления кластером
+
+### 🔧 Настройка техжурнала 1С
+
+1. **Скопируйте конфигурационный файл:**
+
+   ```bash
+   cp config/logcfg.xml /path/to/1c/config/
+   ```
+
+2. **Отредактируйте пути в logcfg.xml:**
+
+   Замените переменные `{{LOG_BASE}}` и `{{LOG_ANALYTICS}}` на реальные пути:
+
+   ```xml
+   <log location="G:/1c_log/core" history="24">
+   ```
+
+   Или используйте переменные окружения для подстановки.
+
+3. **Настройте сервер 1С:**
+
+   - Откройте консоль администрирования 1С:Предприятия
+   - Перейдите в свойства кластера
+   - Укажите путь к `logcfg.xml`
+   - Перезапустите службу 1С:Предприятия
+
+4. **Проверьте создание логов:**
+
+   Убедитесь, что в указанной директории создаются поддиректории:
+   - `core/` — ошибки и события кластера
+   - `perf/` — долгие вызовы
+   - `locks/` — блокировки
+   - `sql/` — медленные SQL-запросы
+   - `zabbix/` — критичные события для мониторинга
+
+### 📊 Сбор метрик
+
+**Команды CLI:**
+
+```bash
+# Текстовая сводка
+zbx-1c techjournal
+
+# JSON для Zabbix
+zbx-1c techjournal --json-output
+
+# Сбор за 15 минут
+zbx-1c techjournal --period 15
+```
+
+**Отправка в Zabbix:**
+
+```bash
+# Отправка метрик
+zbx-1c techjournal send
+
+# Dry-run (проверка без отправки)
+zbx-1c techjournal send --dry-run
+```
+
+### ⚙️ Конфигурация (.env)
+
+```env
+# Путь к логам техжурнала
+TECHJOURNAL_LOG_BASE=G:/1c_log
+TECHJOURNAL_LOG_ANALYTICS=G:/1c_log_analytics
+
+# Период сбора метрик (минуты)
+TECHJOURNAL_PERIOD_MINUTES=5
+
+# Zabbix
+ZABBIX_SERVER=127.0.0.1
+ZABBIX_PORT=10051
+ZABBIX_SENDER_PATH=/usr/bin/zabbix_sender
+ZABBIX_USE_API=false
+```
+
+### 📈 Метрики для Zabbix
+
+| Ключ Zabbix | Описание |
+|-------------|----------|
+| `zbx1cpy.techjournal.total_events` | Всего событий |
+| `zbx1cpy.techjournal.critical_events` | Критичные события |
+| `zbx1cpy.techjournal.errors.count` | Ошибки |
+| `zbx1cpy.techjournal.deadlocks.count` | Deadlock'и |
+| `zbx1cpy.techjournal.timeouts.count` | Таймауты |
+| `zbx1cpy.techjournal.long_locks.count` | Длительные блокировки |
+| `zbx1cpy.techjournal.long_calls.count` | Долгие вызовы |
+| `zbx1cpy.techjournal.slow_sql.count` | Медленный SQL |
+
+### 📋 Пример UserParameter для Zabbix Agent
+
+Готовый файл конфигурации: `zabbix/userparameters/userparameter_techjournal.conf`
+
+```ini
+# Linux: /etc/zabbix/zabbix_agentd.d/userparameter_techjournal.conf
+# Windows: C:\Program Files\Zabbix Agent\zabbix_agentd.conf.d\userparameter_techjournal.conf
+
+# Общее количество событий
+UserParameter=zbx1cpy.techjournal.total,zbx-1c techjournal --json-output --period 5 | jq '.total_events // 0'
+
+# Ошибки
+UserParameter=zbx1cpy.techjournal.errors,zbx-1c techjournal --json-output --period 5 | jq '.["errors.count"] // 0'
+
+# Deadlock'и
+UserParameter=zbx1cpy.techjournal.deadlocks,zbx-1c techjournal --json-output --period 5 | jq '.["deadlocks.count"] // 0'
+
+# Блокировки
+UserParameter=zbx1cpy.techjournal.locks,zbx-1c techjournal --json-output --period 5 | jq '.["long_locks.count"] // 0'
+
+# Долгие вызовы
+UserParameter=zbx1cpy.techjournal.slowcalls,zbx-1c techjournal --json-output --period 5 | jq '.["long_calls.count"] // 0'
+
+# Медленный SQL
+UserParameter=zbx1cpy.techjournal.slowsql,zbx-1c techjournal --json-output --period 5 | jq '.["slow_sql.count"] // 0'
+
+# С аргументом (период в минутах)
+UserParameter=zbx1cpy.techjournal.total[*],zbx-1c techjournal --json-output --period $1 | jq '.total_events // 0'
 ```
 
 ---

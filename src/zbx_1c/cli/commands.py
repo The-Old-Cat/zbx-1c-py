@@ -682,6 +682,46 @@ def check_config_cmd(config: str):
         sys.exit(1)
 
 
+@cli.command("techjournal")
+@click.option("--config", "-c", help="Path to config file", default=".env")
+@click.option("--period", "-p", "period_minutes", help="Period in minutes", default=5, type=int)
+@click.option("--json-output", is_flag=True, help="Output in JSON format")
+def techjournal_metrics(config: str, period_minutes: int, json_output: bool):
+    """
+    Мониторинг техжурнала 1С
+
+    Собирает метрики из логов техжурнала (ошибки, блокировки,
+    долгие вызовы, медленный SQL) за указанный период.
+    """
+    try:
+        settings = load_settings(config)
+
+        # Получаем путь к логам техжурнала
+        log_base = getattr(settings, "techjournal_log_base", None)
+        if not log_base:
+            from pathlib import Path
+            log_base = getattr(settings, "log_path", "./logs")
+            if isinstance(log_base, str):
+                log_base = str(Path(log_base).parent / "1c_techjournal")
+
+        from ..monitoring.techjournal import MetricsCollector
+
+        collector = MetricsCollector(log_base)
+
+        if json_output:
+            metrics = collector.collect(period_minutes=period_minutes)
+            import json
+            click.echo(json.dumps(metrics.to_dict(), indent=2, ensure_ascii=False))
+        else:
+            summary = collector.get_summary(period_minutes=period_minutes)
+            click.echo(summary)
+
+    except Exception as e:
+        logger.error(f"Failed to collect techjournal metrics: {e}")
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
 def monitor():
     """Точка входа для обратной совместимости"""
     args = sys.argv[1:]
@@ -771,6 +811,13 @@ def check_config_cmd():
     """Entry point для zbx-1c-check-config"""
     sys.argv = [sys.argv[0], "check-config"] + sys.argv[1:]
     cli()
+
+
+def techjournal_cmd():
+    """Entry point для zbx-1c-techjournal"""
+    from .techjournal import techjournal_cli
+
+    techjournal_cli()
 
 
 if __name__ == "__main__":

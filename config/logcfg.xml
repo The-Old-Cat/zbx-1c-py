@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns="http://v8.1c.ru/v8/tech-log">
+
+    <!-- ================================================= -->
+    <!-- CORE — ошибки и администрирование -->
+    <!-- ================================================= -->
+    <log location="{{LOG_BASE}}\core" history="24">
+
+        <!-- ошибки -->
+        <event><eq property="Name" value="EXCP"/></event>
+
+        <!-- предупреждения -->
+        <event><eq property="Name" value="ATTN"/></event>
+
+        <!-- кластер -->
+        <event><eq property="Name" value="CLSTR"/></event>
+        <event><eq property="Name" value="ADMIN"/></event>
+
+        <property name="p:processName"/>
+        <property name="t:computerName"/>
+        <property name="t:Usr"/>
+        <property name="descr"/>
+        <property name="context"/>
+
+    </log>
+
+    <!-- ================================================= -->
+    <!-- PERFORMANCE — долгие вызовы (>200 мс) -->
+    <!-- ================================================= -->
+    <log location="{{LOG_BASE}}\perf" history="12">
+
+        <event>
+            <eq property="Name" value="CALL"/>
+            <ge property="Duration" value="200000"/> <!-- 200 ms -->
+        </event>
+
+        <property name="t:Usr"/>
+        <property name="module"/>
+        <property name="method"/>
+        <property name="duration"/>
+        <property name="context"/>
+
+    </log>
+
+    <!-- ================================================= -->
+    <!-- LOCKS — реальные проблемы -->
+    <!-- ================================================= -->
+    <log location="{{LOG_BASE}}\locks" history="24">
+
+        <!-- долгие блокировки (>500 мс) -->
+        <event>
+            <eq property="Name" value="TLOCK"/>
+            <ge property="Durationus" value="500000"/>
+        </event>
+
+        <!-- deadlock -->
+        <event><eq property="Name" value="TDEADLOCK"/></event>
+
+        <!-- timeout -->
+        <event><eq property="Name" value="TTIMEOUT"/></event>
+
+        <property name="t:Usr"/>
+        <property name="t:connectID"/>
+        <property name="regions"/>
+        <property name="locks"/>
+        <property name="context"/>
+
+    </log>
+
+    <!-- ================================================= -->
+    <!-- SQL — медленные запросы (>80 мс) -->
+    <!-- ================================================= -->
+    <query:log xmlns:query="http://v8.1c.ru/v8/tech-log"
+               location="{{LOG_BASE}}\sql"
+               history="6">
+
+        <query:event>
+            <query:eq property="Name" value="SDBL"/>
+            <query:ge property="Duration" value="80000"/>
+        </query:event>
+
+        <query:event>
+            <query:eq property="Name" value="DBMSSQL"/>
+            <query:ge property="Duration" value="80000"/>
+        </query:event>
+
+        <query:property name="t:Usr"/>
+        <query:property name="Sql"/>
+        <query:property name="Context"/>
+        <query:property name="Duration"/>
+
+    </query:log>
+
+    <!-- ================================================= -->
+    <!-- ZABBIX — облегчённый realtime (только критичные) -->
+    <!-- ================================================= -->
+    <log location="{{LOG_BASE}}\zabbix" history="1">
+
+        <event><eq property="Name" value="EXCP"/></event>
+        <event><eq property="Name" value="TDEADLOCK"/></event>
+        <event><eq property="Name" value="TTIMEOUT"/></event>
+
+        <property name="t:Usr"/>
+        <property name="Name"/>
+        <property name="descr"/>
+
+    </log>
+
+    <!-- ================================================= -->
+    <!-- АНАЛИТИКА — полные логи для ручного анализа -->
+    <!-- ================================================= -->
+    <log location="{{LOG_ANALYTICS}}\errors_full" history="24">
+        <event><eq property="Name" value="EXCP"/></event>
+        <property name="t:datetime"/>
+        <property name="descr"/>
+        <property name="callstack"/>
+    </log>
+
+    <!-- отключаем dump -->
+    <dump create="false"/>
+
+</config>

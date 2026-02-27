@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     # Session limit (number of licenses, set manually)
     session_limit: int = Field(default=100, validation_alias="SESSION_LIMIT")
 
+    # Techjournal log base path
+    techjournal_log_base: Optional[Path] = Field(
+        default=None, validation_alias="TECHJOURNAL_LOG_BASE"
+    )
+
     model_config = SettingsConfigDict(
         env_file=get_project_root() / ".env",
         env_file_encoding="utf-8",
@@ -81,6 +86,17 @@ class Settings(BaseSettings):
     def validate_port(cls, v):
         if not 1 <= v <= 65535:
             raise ValueError(f"Invalid port number: {v}")
+        return v
+
+    @field_validator("techjournal_log_base", mode="before")
+    @classmethod
+    def validate_techjournal_path(cls, v):
+        """Проверка пути к техжурналу"""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v = Path(v)
+        # Не создаём директорию автоматически, т.к. она должна существовать
         return v
 
     @property
