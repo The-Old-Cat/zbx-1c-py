@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .venv/
 .env
+.env.local
 uv.lock
 dist/
 build/
@@ -18,4 +19,4 @@ tests/*
 !tests/.gitkeep
 zabbix/userparameters/*
 !zabbix/userparameters/.gitkeep
-zabbix/userparameters/userparameter_1c.conf
+

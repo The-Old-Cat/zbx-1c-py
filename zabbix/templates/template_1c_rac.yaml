@@ -1,21 +1,21 @@
 zabbix_export:
-  version: "7.0"
+  version: '7.0'
   template_groups:
     - uuid: b91b8f978afa45ec90535a9467a60966
-      name: "1C Servers"
+      name: '1C Servers'
   templates:
     - uuid: 6217edce72c8467880e95f5fb18910b1
-      template: "1C Enterprise Monitoring"
-      name: "1C Enterprise Monitoring"
+      template: '1C Enterprise Monitoring RAC'
+      name: '1C Enterprise Monitoring RAC'
       description: |
         Шаблон "1C Enterprise Monitoring" предназначен для мониторинга кластеров 1С:Предприятие с помощью инструмента zbx-1c-py.
-
+        
         Терминология 1С:
         - Кластер — весь комплекс серверов 1С
         - Центральный сервер — управляет кластером (процесс ragent)
         - Рабочий сервер — физическая/виртуальная машина в кластере (хост с агентом ragent)
         - Рабочий процесс (rphost.exe) — процесс на Рабочем сервере, выполняющий код 1С
-
+        
         Основные возможности:
         - Discovery rule "1C Clusters Discovery" автоматически обнаруживает все кластеры через rac utility.
         - Создаются dependent items от master item "zbx1cpy.metrics[{#CLUSTER.ID}]":
@@ -44,22 +44,22 @@ zabbix_export:
             - "Background jobs stall detected": более 80% фоновых заданий активны
             - "Server memory usage > 85%": память Рабочих процессов превышает 85% (только если memory_limit_set=1)
       groups:
-        - name: "1C Servers"
+        - name: '1C Servers'
       items:
         - uuid: d8e5070eb9a74a45829aad35dc78c113
-          name: "1C: Process Memory (all)"
+          name: '1C: Process Memory (all)'
           key: zbx1cpy.memory.all
           history: 7d
           value_type: LOG
-          trends: "0"
+          trends: '0'
           tags:
             - tag: App
               value: 1С
         - uuid: 08ffcb03044a47c196acbf85a17892ae
-          name: "1C: ragent process memory"
+          name: '1C: ragent process memory'
           type: DEPENDENT
           key: zbx1cpy.memory.ragent
-          delay: "0"
+          delay: '0'
           units: B
           preprocessing:
             - type: JSONPATH
@@ -67,17 +67,17 @@ zabbix_export:
                 - $.ragent
             - type: MULTIPLIER
               parameters:
-                - "1024"
+                - '1024'
           master_item:
             key: zbx1cpy.memory.all
           tags:
             - tag: App
               value: 1С
         - uuid: 70583dc88f3a4f6d9bcfc6ec5658be62
-          name: "1C: rmngr process memory"
+          name: '1C: rmngr process memory'
           type: DEPENDENT
           key: zbx1cpy.memory.rmngr
-          delay: "0"
+          delay: '0'
           units: B
           preprocessing:
             - type: JSONPATH
@@ -85,17 +85,17 @@ zabbix_export:
                 - $.rmngr
             - type: MULTIPLIER
               parameters:
-                - "1024"
+                - '1024'
           master_item:
             key: zbx1cpy.memory.all
           tags:
             - tag: App
               value: 1С
         - uuid: f925a91a13e4464f864a1bd56bc43750
-          name: "1C: rphost process memory"
+          name: '1C: rphost process memory'
           type: DEPENDENT
           key: zbx1cpy.memory.rphost
-          delay: "0"
+          delay: '0'
           units: B
           preprocessing:
             - type: JSONPATH
@@ -103,7 +103,7 @@ zabbix_export:
                 - $.rphost
             - type: MULTIPLIER
               parameters:
-                - "1024"
+                - '1024'
           master_item:
             key: zbx1cpy.memory.all
           tags:
@@ -111,7 +111,7 @@ zabbix_export:
               value: 1С
       discovery_rules:
         - uuid: 1cd3db8d376344eaa6d42fe2f3eade5e
-          name: "1C Clusters Discovery"
+          name: '1C Clusters Discovery'
           key: zbx1cpy.clusters.discovery
           delay: 10m
           description: |
@@ -119,36 +119,36 @@ zabbix_export:
             Создаёт dependent items и триггеры для каждого кластера.
           item_prototypes:
             - uuid: 3478367194024c5ca69fa36726249b8d
-              name: "1C: Active background jobs [{#CLUSTER.NAME}]"
+              name: '1C: Active background jobs [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
+              key: 'zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]'
+              delay: '0'
+              trends: '0'
               description: |
                 Количество реально выполняющихся фоновых заданий в кластере.
-
+                
                 Критерии активности по типам заданий:
                 - JobScheduler: всегда активен (планировщик регламентных заданий)
                 - SystemBackgroundJob: активен, если hibernate = "no"
                 - BackgroundJob: активен, если hibernate = "no"
-
+                
                 Используется для анализа нагрузки и обнаружения зависших заданий.
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - $.active_jobs
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
               trigger_prototypes:
                 - uuid: cfecf83689a2468580e6d8f9a0c5b8af
-                  expression: "avg(/1C Enterprise Monitoring/zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}],#5)>10"
+                  expression: 'avg(/1C Enterprise Monitoring RAC/zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}],#5)>10'
                   recovery_mode: RECOVERY_EXPRESSION
-                  recovery_expression: "avg(/1C Enterprise Monitoring/zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}],#5)<5"
-                  name: "1C: High average background jobs on cluster {#CLUSTER.ID} (avg > 5 for 10 checks)"
-                  opdata: "Current avg: {ITEM.VALUE1}"
+                  recovery_expression: 'avg(/1C Enterprise Monitoring RAC/zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}],#5)<5'
+                  name: '1C: High average background jobs on cluster {#CLUSTER.ID} (avg > 5 for 10 checks)'
+                  opdata: 'Current avg: {ITEM.VALUE1}'
                   priority: AVERAGE
                   description: |
                     Триггер срабатывает, если среднее количество активных фоновых заданий за 5 проверок
@@ -157,14 +157,14 @@ zabbix_export:
                     - tag: App
                       value: 1С
             - uuid: 0c44fd000a6f480b9e63f88de8bf4546
-              name: "1C: Active sessions [{#CLUSTER.NAME}]"
+              name: '1C: Active sessions [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.active_sessions[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
+              key: 'zbx1cpy.cluster.active_sessions[{#CLUSTER.ID}]'
+              delay: '0'
+              trends: '0'
               description: |
                 Количество активных сессий в кластере за последние 5 минут.
-
+                
                 Критерии активности (двухуровневый):
                 1. last-active-at ≤ порог → сессия активна:
                    - Designer (Конфигуратор): 10 минут
@@ -173,46 +173,46 @@ zabbix_export:
                    - hibernate = "no"
                    - calls-last-5min ≥ 1
                    - bytes-last-5min ≥ 1024 байт
-
+                
                 Используется для мониторинга нагрузки на кластер.
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - $.active_sessions
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
             - uuid: 6542814aef7c47388f426f113a935fd7
-              name: "1C: Long running jobs [{#CLUSTER.NAME}]"
+              name: '1C: Long running jobs [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.long_running_jobs[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
+              key: 'zbx1cpy.cluster.long_running_jobs[{#CLUSTER.ID}]'
+              delay: '0'
+              trends: '0'
               description: |
                 Количество длительных фоновых заданий в кластере.
-
+                
                 Длительные задания — это задания типов:
                 - BackgroundJob: фоновые задания пользователей
                 - SystemBackgroundJob: системные фоновые задания
-
+                
                 Исключение: JobScheduler (планировщик) не считается длительным заданием.
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - $.long_running_jobs
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
             - uuid: a2170d91c2ff42cd8d61a4dfd35126db
-              name: "1C: Max job duration [{#CLUSTER.NAME}]"
+              name: '1C: Max job duration [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.max_job_duration[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
+              key: 'zbx1cpy.cluster.max_job_duration[{#CLUSTER.ID}]'
+              delay: '0'
+              trends: '0'
               description: |
                 Максимальное время выполнения среди активных фоновых заданий (в минутах).
                 Используется для выявления зависших заданий.
@@ -221,18 +221,18 @@ zabbix_export:
                   parameters:
                     - $.max_job_duration
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
             - uuid: dfe8743b19024519946b7b4430284162
-              name: "1C: Memory limit set [{#CLUSTER.NAME}]"
+              name: '1C: Memory limit set [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.memory_limit_set[{#CLUSTER.ID}]"
-              delay: "0"
+              key: 'zbx1cpy.cluster.memory_limit_set[{#CLUSTER.ID}]'
+              delay: '0'
               value_type: FLOAT
-              trends: "0"
-              units: "%"
+              trends: '0'
+              units: '%'
               description: |
                 Флаг: задан ли лимит памяти в настройках Рабочего сервера (1=да, 0=нет).
                 Если 0 — server_memory_percent не рассчитывается (возвращает 0).
@@ -241,16 +241,16 @@ zabbix_export:
                   parameters:
                     - $.memory_limit_set
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
             - uuid: b5fe6490ce7443a58f0eabd2005ec614
-              name: "1C: Cluster Servers Restarted [{#CLUSTER.NAME}]"
+              name: '1C: Cluster Servers Restarted [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.servers_restarted_recently[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
+              key: 'zbx1cpy.cluster.servers_restarted_recently[{#CLUSTER.ID}]'
+              delay: '0'
+              trends: '0'
               description: |
                 Количество Рабочих серверов (физических/виртуальных машин), перезапущенных за последние 5 минут.
                 Выявляет аварийные перезагрузки.
@@ -259,17 +259,17 @@ zabbix_export:
                   parameters:
                     - $.servers_restarted_recently
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
             - uuid: 64276e99c5f34e72802b5af182a1341c
-              name: "1C: Server memory limit [{#CLUSTER.NAME}]"
+              name: '1C: Server memory limit [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.server_memory_limit[{#CLUSTER.ID}]"
-              delay: "0"
+              key: 'zbx1cpy.cluster.server_memory_limit[{#CLUSTER.ID}]'
+              delay: '0'
               value_type: FLOAT
-              trends: "0"
+              trends: '0'
               units: B
               description: |
                 Лимит памяти для Рабочих процессов (rphost.exe) на серверах кластера (КБ → Bytes).
@@ -280,19 +280,19 @@ zabbix_export:
                     - $.server_memory_limit
                 - type: MULTIPLIER
                   parameters:
-                    - "1048576"
+                    - '1048576'
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
             - uuid: 0817412b52c94de3b28d4d3e133f982a
-              name: "1C: Server memory percent [{#CLUSTER.NAME}]"
+              name: '1C: Server memory percent [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.server_memory_percent[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
-              units: "%"
+              key: 'zbx1cpy.cluster.server_memory_percent[{#CLUSTER.ID}]'
+              delay: '0'
+              trends: '0'
+              units: '%'
               description: |
                 Процент использования памяти всеми Рабочими процессами (rphost.exe) на серверах кластера.
                 Рассчитывается только если memory_limit_set=1 (лимит памяти задан).
@@ -301,79 +301,79 @@ zabbix_export:
                   parameters:
                     - $.server_memory_percent
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
               trigger_prototypes:
                 - uuid: d4af73f2b62640059fdfea1bea227c34
-                  expression: "last(/1C Enterprise Monitoring/zbx1cpy.cluster.server_memory_percent[{#CLUSTER.ID}])>85"
-                  name: "1C: Server memory usage > 85% on {#CLUSTER.NAME}"
-                  opdata: "Current usage: {ITEM.LASTVALUE1}%"
+                  expression: 'last(/1C Enterprise Monitoring RAC/zbx1cpy.cluster.server_memory_percent[{#CLUSTER.ID}])>85'
+                  name: '1C: Server memory usage > 85% on {#CLUSTER.NAME}'
+                  opdata: 'Current usage: {ITEM.LASTVALUE1}%'
                   priority: AVERAGE
                   tags:
                     - tag: App
                       value: 1C
             - uuid: d8a5c1ba13a04bb3a867f32663bbe2cb
-              name: "1C: Server memory used [{#CLUSTER.NAME}]"
+              name: '1C: Server memory used [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.server_memory_used[{#CLUSTER.ID}]"
-              delay: "0"
+              key: 'zbx1cpy.cluster.server_memory_used[{#CLUSTER.ID}]'
+              delay: '0'
               value_type: FLOAT
-              trends: "0"
+              trends: '0'
               units: B
-              description: "Фактическое использование памяти всеми Рабочими процессами (rphost.exe) на серверах кластера (КБ → Bytes)."
+              description: 'Фактическое использование памяти всеми Рабочими процессами (rphost.exe) на серверах кластера (КБ → Bytes).'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - $.server_memory_used
                 - type: MULTIPLIER
                   parameters:
-                    - "1048576"
+                    - '1048576'
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
             - uuid: 6702af8b38434851bbaaaa1e39735e10
-              name: "1C: Session limit [{#CLUSTER.NAME}]"
+              name: '1C: Session limit [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.session_limit[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
-              units: "session licenses"
-              description: "Лимит сессий кластера. Берется из SESSION_LIMIT в .env (количество лицензий)."
+              key: 'zbx1cpy.cluster.session_limit[{#CLUSTER.ID}]'
+              delay: '0'
+              trends: '0'
+              units: 'session licenses'
+              description: 'Лимит сессий кластера. Берется из SESSION_LIMIT в .env (количество лицензий).'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - $.session_limit
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
             - uuid: 0752df59ffd24dc89ece2a81dfec234f
-              name: "1C: Session usage percent [{#CLUSTER.NAME}]"
+              name: '1C: Session usage percent [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.session_percent[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
-              units: "%"
-              description: "Процент использования сессий от лимита (session_limit)."
+              key: 'zbx1cpy.cluster.session_percent[{#CLUSTER.ID}]'
+              delay: '0'
+              trends: '0'
+              units: '%'
+              description: 'Процент использования сессий от лимита (session_limit).'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - $.session_percent
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
               trigger_prototypes:
                 - uuid: 17bf559686a54f5793c5f985649a02c6
-                  expression: "min(/1C Enterprise Monitoring/zbx1cpy.cluster.session_percent[{#CLUSTER.ID}],5m) > 90"
-                  name: "1C: Cluster {#CLUSTER.NAME} session usage > 90%"
-                  opdata: "Current load: {ITEM.LASTVALUE1}%"
+                  expression: 'min(/1C Enterprise Monitoring RAC/zbx1cpy.cluster.session_percent[{#CLUSTER.ID}],5m) > 90'
+                  name: '1C: Cluster {#CLUSTER.NAME} session usage > 90%'
+                  opdata: 'Current load: {ITEM.LASTVALUE1}%'
                   priority: AVERAGE
                   description: |
                     Срабатывает при превышении 90% использования сессий кластера.
@@ -382,20 +382,20 @@ zabbix_export:
                     - tag: App
                       value: 1С
             - uuid: 2cac5b5bb2e8478b8c9b3227993fcf3b
-              name: "1C: Cluster status [{#CLUSTER.NAME}]"
-              key: "zbx1cpy.cluster.status[{#CLUSTER.ID}]"
+              name: '1C: Cluster status [{#CLUSTER.NAME}]'
+              key: 'zbx1cpy.cluster.status[{#CLUSTER.ID}]'
               history: 7d
               value_type: TEXT
-              trends: "0"
+              trends: '0'
               description: '"Статус кластера: available | unavailable | unknown"'
               tags:
                 - tag: App
                   value: 1С
               trigger_prototypes:
                 - uuid: 6072080f819341379495fe4033a1cf09
-                  expression: 'count(/1C Enterprise Monitoring/zbx1cpy.cluster.status[{#CLUSTER.ID}],#2,"ne","available")=2'
-                  name: "1C: Cluster {#CLUSTER.NAME} is {ITEM.LASTVALUE}"
-                  opdata: "Current status: {ITEM.LASTVALUE1}"
+                  expression: 'count(/1C Enterprise Monitoring RAC/zbx1cpy.cluster.status[{#CLUSTER.ID}],#2,"ne","available")=2'
+                  name: '1C: Cluster {#CLUSTER.NAME} is {ITEM.LASTVALUE}'
+                  opdata: 'Current status: {ITEM.LASTVALUE1}'
                   priority: HIGH
                   description: |
                     Срабатывает, если кластер недоступен 2 раза подряд.
@@ -404,50 +404,50 @@ zabbix_export:
                     - tag: App
                       value: 1С
             - uuid: 8f4b36c254524b2fbca789beca69b80a
-              name: "1C: Stuck jobs [{#CLUSTER.NAME}]"
+              name: '1C: Stuck jobs [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.stuck_jobs[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
+              key: 'zbx1cpy.cluster.stuck_jobs[{#CLUSTER.ID}]'
+              delay: '0'
+              trends: '0'
               description: |
                 Количество «зависших» фоновых заданий в кластере.
-
+                
                 Задание считается зависшим, если выполняются все условия:
                 1. Тип задания: BackgroundJob или SystemBackgroundJob (длительные задания)
                 2. Статус: активное (hibernate = "no")
                 3. Время выполнения: > 30 минут
-
+                
                 Используется для выявления проблемных заданий, требующих вмешательства.
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - $.stuck_jobs
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
             - uuid: 8ae4c7e526f34e90b83f555ecbceb0a9
-              name: "1C: Total jobs [{#CLUSTER.NAME}]"
+              name: '1C: Total jobs [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
-              description: "Общее количество фоновых заданий в кластере (включая JobScheduler)."
+              key: 'zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]'
+              delay: '0'
+              trends: '0'
+              description: 'Общее количество фоновых заданий в кластере (включая JobScheduler).'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - $.total_jobs
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
               trigger_prototypes:
                 - uuid: 0b6cb8eb00da428d819098c9cd869757
-                  expression: "max(/1C Enterprise Monitoring/zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}],5)-min(/1C Enterprise Monitoring/zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}],5)>100"
-                  name: "1C: Total jobs [{#CLUSTER.ID}].last(),5m)>100"
-                  opdata: "Difference: {ITEM.VALUE1}, Total counter: {ITEM.LASTVALUE1}"
+                  expression: 'max(/1C Enterprise Monitoring RAC/zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}],5)-min(/1C Enterprise Monitoring RAC/zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}],5)>100'
+                  name: '1C: Total jobs [{#CLUSTER.ID}].last(),5m)>100'
+                  opdata: 'Difference: {ITEM.VALUE1}, Total counter: {ITEM.LASTVALUE1}'
                   priority: AVERAGE
                   description: |
                     Срабатывает, если количество фоновых заданий резко увеличилось
@@ -456,45 +456,45 @@ zabbix_export:
                     - tag: App
                       value: 1С
             - uuid: a30e42c438ec458cb6c71e24a66df52e
-              name: "1C: Total servers [{#CLUSTER.NAME}]"
+              name: '1C: Total servers [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.total_servers[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
+              key: 'zbx1cpy.cluster.total_servers[{#CLUSTER.ID}]'
+              delay: '0'
+              trends: '0'
               units: servers
-              description: "Общее количество серверов (физических/виртуальных машин) в кластере."
+              description: 'Общее количество серверов (физических/виртуальных машин) в кластере.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - $.total_servers
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
             - uuid: 5707738fa1a6433ca7f4911edc3cff0f
-              name: "1C: Total sessions [{#CLUSTER.NAME}]"
+              name: '1C: Total sessions [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.total_sessions[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
+              key: 'zbx1cpy.cluster.total_sessions[{#CLUSTER.ID}]'
+              delay: '0'
+              trends: '0'
               units: sessions
-              description: "Общее количество сессий в кластере (все подключения пользователей)."
+              description: 'Общее количество сессий в кластере (все подключения пользователей).'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - $.total_sessions
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
             - uuid: c2790f43509c4a67ae46a3882ba40c72
-              name: "1C: Working servers [{#CLUSTER.NAME}]"
+              name: '1C: Working servers [{#CLUSTER.NAME}]'
               type: DEPENDENT
-              key: "zbx1cpy.cluster.working_servers[{#CLUSTER.ID}]"
-              delay: "0"
-              trends: "0"
+              key: 'zbx1cpy.cluster.working_servers[{#CLUSTER.ID}]'
+              delay: '0'
+              trends: '0'
               units: servers
               description: 'Количество Рабочих серверов (физических/виртуальных машин) в кластере, которые находятся в статусе "working".'
               preprocessing:
@@ -502,16 +502,16 @@ zabbix_export:
                   parameters:
                     - $.working_servers
               master_item:
-                key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+                key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               tags:
                 - tag: App
                   value: 1С
             - uuid: 08da3de1ef38415faa8d44d33b5e3f51
-              name: "1C: Cluster Metrics [{#CLUSTER.NAME}]"
-              key: "zbx1cpy.metrics[{#CLUSTER.ID}]"
+              name: '1C: Cluster Metrics [{#CLUSTER.NAME}]'
+              key: 'zbx1cpy.metrics[{#CLUSTER.ID}]'
               history: 7d
               value_type: LOG
-              trends: "0"
+              trends: '0'
               description: |
                 Master item для всех dependent items.
                 Содержит сырые данные метрик кластера в формате JSON.
@@ -525,12 +525,12 @@ zabbix_export:
           trigger_prototypes:
             - uuid: 0e985395dce24956ada78dfa97c72c9b
               expression: |
-                (last(/1C Enterprise Monitoring/zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]) /
-                last(/1C Enterprise Monitoring/zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]) > 0.8)
+                (last(/1C Enterprise Monitoring RAC/zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]) /
+                last(/1C Enterprise Monitoring RAC/zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]) > 0.8)
                 and
-                last(/1C Enterprise Monitoring/zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]) > 10
-              name: "1C: Background jobs stall detected (>80% active) on {#CLUSTER.NAME}"
-              opdata: "Active: {ITEM.LASTVALUE1}, Total: {ITEM.LASTVALUE2}"
+                last(/1C Enterprise Monitoring RAC/zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]) > 10
+              name: '1C: Background jobs stall detected (>80% active) on {#CLUSTER.NAME}'
+              opdata: 'Active: {ITEM.LASTVALUE1}, Total: {ITEM.LASTVALUE2}'
               priority: AVERAGE
               description: |
                 Срабатывает, если более 80% всех фоновых заданий кластера активны.
@@ -540,186 +540,186 @@ zabbix_export:
                   value: 1С
           graph_prototypes:
             - uuid: 303cb148ce0e40afaf53964a099496aa
-              name: "1C: Cluster Jobs Performance  [{#CLUSTER.NAME}]"
+              name: '1C: Cluster Jobs Performance  [{#CLUSTER.NAME}]'
               graph_items:
                 - color: 199C0D
                   calc_fnc: ALL
                   item:
-                    host: "1C Enterprise Monitoring"
-                    key: "zbx1cpy.cluster.max_job_duration[{#CLUSTER.ID}]"
-                - sortorder: "1"
+                    host: '1C Enterprise Monitoring RAC'
+                    key: 'zbx1cpy.cluster.max_job_duration[{#CLUSTER.ID}]'
+                - sortorder: '1'
                   color: F63100
                   calc_fnc: ALL
                   item:
-                    host: "1C Enterprise Monitoring"
-                    key: "zbx1cpy.cluster.stuck_jobs[{#CLUSTER.ID}]"
-                - sortorder: "2"
+                    host: '1C Enterprise Monitoring RAC'
+                    key: 'zbx1cpy.cluster.stuck_jobs[{#CLUSTER.ID}]'
+                - sortorder: '2'
                   color: 2774A4
                   calc_fnc: ALL
                   item:
-                    host: "1C Enterprise Monitoring"
-                    key: "zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]"
+                    host: '1C Enterprise Monitoring RAC'
+                    key: 'zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]'
       tags:
         - tag: App
           value: 1С
       dashboards:
         - uuid: 72059c37f0284fde9443f6a2069c05fc
-          name: "1C Clusters"
+          name: '1C Clusters'
           pages:
-            - name: "1C Background jobs and sessions"
-              display_period: "3600"
+            - name: '1C Background jobs and sessions'
+              display_period: '3600'
               widgets:
                 - type: graphprototype
-                  width: "36"
-                  height: "4"
-                  hide_header: "YES"
+                  width: '36'
+                  height: '4'
+                  hide_header: 'YES'
                   fields:
                     - type: INTEGER
                       name: columns
-                      value: "1"
+                      value: '1'
                     - type: ITEM_PROTOTYPE
                       name: itemid.0
                       value:
-                        host: "1C Enterprise Monitoring"
-                        key: "zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]"
+                        host: '1C Enterprise Monitoring RAC'
+                        key: 'zbx1cpy.cluster.total_jobs[{#CLUSTER.ID}]'
                     - type: STRING
                       name: reference
                       value: KBPWH
                     - type: INTEGER
                       name: source_type
-                      value: "3"
+                      value: '3'
                 - type: graphprototype
-                  "y": "4"
-                  width: "36"
-                  height: "4"
-                  hide_header: "YES"
+                  'y': '4'
+                  width: '36'
+                  height: '4'
+                  hide_header: 'YES'
                   fields:
                     - type: INTEGER
                       name: columns
-                      value: "1"
+                      value: '1'
                     - type: ITEM_PROTOTYPE
                       name: itemid.0
                       value:
-                        host: "1C Enterprise Monitoring"
-                        key: "zbx1cpy.cluster.total_sessions[{#CLUSTER.ID}]"
+                        host: '1C Enterprise Monitoring RAC'
+                        key: 'zbx1cpy.cluster.total_sessions[{#CLUSTER.ID}]'
                     - type: STRING
                       name: reference
                       value: PTOVF
                     - type: INTEGER
                       name: source_type
-                      value: "3"
+                      value: '3'
                 - type: graphprototype
-                  x: "36"
-                  width: "36"
-                  height: "4"
-                  hide_header: "YES"
+                  x: '36'
+                  width: '36'
+                  height: '4'
+                  hide_header: 'YES'
                   fields:
                     - type: INTEGER
                       name: columns
-                      value: "1"
+                      value: '1'
                     - type: ITEM_PROTOTYPE
                       name: itemid.0
                       value:
-                        host: "1C Enterprise Monitoring"
-                        key: "zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]"
+                        host: '1C Enterprise Monitoring RAC'
+                        key: 'zbx1cpy.cluster.active_jobs[{#CLUSTER.ID}]'
                     - type: STRING
                       name: reference
                       value: KIPJI
                     - type: INTEGER
                       name: source_type
-                      value: "3"
+                      value: '3'
                 - type: graphprototype
-                  x: "36"
-                  "y": "4"
-                  width: "36"
-                  height: "4"
-                  hide_header: "YES"
+                  x: '36'
+                  'y': '4'
+                  width: '36'
+                  height: '4'
+                  hide_header: 'YES'
                   fields:
                     - type: INTEGER
                       name: columns
-                      value: "1"
+                      value: '1'
                     - type: ITEM_PROTOTYPE
                       name: itemid.0
                       value:
-                        host: "1C Enterprise Monitoring"
-                        key: "zbx1cpy.cluster.active_sessions[{#CLUSTER.ID}]"
+                        host: '1C Enterprise Monitoring RAC'
+                        key: 'zbx1cpy.cluster.active_sessions[{#CLUSTER.ID}]'
                     - type: STRING
                       name: reference
                       value: IXTVZ
                     - type: INTEGER
                       name: source_type
-                      value: "3"
-            - name: "1C Process memory"
-              display_period: "3600"
+                      value: '3'
+            - name: '1C Process memory'
+              display_period: '3600'
               widgets:
                 - type: graphprototype
-                  width: "36"
-                  height: "4"
-                  hide_header: "YES"
+                  width: '36'
+                  height: '4'
+                  hide_header: 'YES'
                   fields:
                     - type: INTEGER
                       name: columns
-                      value: "1"
+                      value: '1'
                     - type: ITEM_PROTOTYPE
                       name: itemid.0
                       value:
-                        host: "1C Enterprise Monitoring"
-                        key: "zbx1cpy.cluster.server_memory_used[{#CLUSTER.ID}]"
+                        host: '1C Enterprise Monitoring RAC'
+                        key: 'zbx1cpy.cluster.server_memory_used[{#CLUSTER.ID}]'
                     - type: STRING
                       name: reference
                       value: OCDNJ
                     - type: INTEGER
                       name: source_type
-                      value: "3"
+                      value: '3'
                 - type: graph
-                  "y": "4"
-                  width: "36"
-                  height: "4"
-                  hide_header: "YES"
+                  'y': '4'
+                  width: '36'
+                  height: '4'
+                  hide_header: 'YES'
                   fields:
                     - type: ITEM
                       name: itemid.0
                       value:
-                        host: "1C Enterprise Monitoring"
+                        host: '1C Enterprise Monitoring RAC'
                         key: zbx1cpy.memory.ragent
                     - type: STRING
                       name: reference
                       value: XXJPB
                     - type: INTEGER
                       name: source_type
-                      value: "1"
+                      value: '1'
                 - type: graph
-                  x: "36"
-                  width: "36"
-                  height: "4"
-                  hide_header: "YES"
+                  x: '36'
+                  width: '36'
+                  height: '4'
+                  hide_header: 'YES'
                   fields:
                     - type: ITEM
                       name: itemid.0
                       value:
-                        host: "1C Enterprise Monitoring"
+                        host: '1C Enterprise Monitoring RAC'
                         key: zbx1cpy.memory.rphost
                     - type: STRING
                       name: reference
                       value: ZLRQP
                     - type: INTEGER
                       name: source_type
-                      value: "1"
+                      value: '1'
                 - type: graph
-                  x: "36"
-                  "y": "4"
-                  width: "36"
-                  height: "4"
-                  hide_header: "YES"
+                  x: '36'
+                  'y': '4'
+                  width: '36'
+                  height: '4'
+                  hide_header: 'YES'
                   fields:
                     - type: ITEM
                       name: itemid.0
                       value:
-                        host: "1C Enterprise Monitoring"
+                        host: '1C Enterprise Monitoring RAC'
                         key: zbx1cpy.memory.rmngr
                     - type: STRING
                       name: reference
                       value: YNZKW
                     - type: INTEGER
                       name: source_type
-                      value: "1"
+                      value: '1'
