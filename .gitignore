@@ -3,6 +3,10 @@ __pycache__/
 .venv/
 .env
 .env.local
+.env.rac
+.env.rac.*
+.env.techlog
+.env.techlog.*
 uv.lock
 dist/
 build/
