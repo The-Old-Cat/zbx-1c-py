@@ -21,6 +21,8 @@ data/*
 !data/.gitkeep
 tests/*
 !tests/.gitkeep
-zabbix/userparameters/*
+zabbix/userparameters/*.old
+zabbix/userparameters/*.bak
+!zabbix/userparameters/*.conf
 !zabbix/userparameters/.gitkeep
 
