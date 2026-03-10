@@ -197,7 +197,7 @@ systemctl restart zabbix-agent2
 |--------|----------|--------|
 | `{#CLUSTER_ID}` | UUID кластера | `f93863ed-3fdb-4e01-a74c-e112c81b053b` |
 | `{#CLUSTER_NAME}` | Имя кластера | `"Локальный кластер"` |
-| `{#CLUSTER_HOST}` | Хост RAS | `srv-pinavto01` |
+| `{#CLUSTER_HOST}` | Хост RAS | `1c-server` |
 | `{#CLUSTER_PORT}` | Порт RAS | `1541` |
 | `{#CLUSTER_STATUS}` | Статус кластера | `available` |
 

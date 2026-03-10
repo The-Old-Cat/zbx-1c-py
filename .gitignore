@@ -16,8 +16,10 @@ ENV/
 .env.local
 .env.rac
 .env.rac.*
+!.env.rac.example
 .env.techlog
 .env.techlog.*
+!.env.techlog.example
 
 # UV
 uv.lock
