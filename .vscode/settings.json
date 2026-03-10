@@ -1,7 +1,7 @@
 {
     // --- ИНТЕРФЕЙС ---
     "workbench.startupEditor": "none",
-    "workbench.colorTheme": "Visual Studio Dark",
+    "workbench.colorTheme": "Default Dark Modern",
     "workbench.iconTheme": "vscode-icons",
     "editor.minimap.enabled": false,
     "breadcrumbs.enabled": false,

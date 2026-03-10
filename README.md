@@ -54,6 +54,8 @@ pip install -e ./packages/zbx-1c-rac -e ./packages/zbx-1c-techlog
 ```
 
 **📖 Полная инструкция:** [docs/01-quickstart.md](docs/01-quickstart.md)
+
+```
 │   ├── README.md
 │   ├── deploy/                  # Скрипты развёртывания
 │   │   └── .gitkeep
@@ -110,7 +112,7 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
-**Вариант 3: Через pip с uv**
+**Вариант 3: Через `pip` с `uv`**
 
 ```bash
 # Установка зависимостей через uv pip
@@ -127,7 +129,7 @@ cp .env.example .env
 
 2. Отредактируйте `.env`, указав свои значения:
 
-```env
+```ini
 # Путь к утилите rac (различается в зависимости от ОС)
 # Windows:
 # RAC_PATH=C:/Program Files/1cv8/8.3.x.x/bin/rac.exe
