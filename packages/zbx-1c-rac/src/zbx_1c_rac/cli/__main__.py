@@ -58,7 +58,20 @@ def discovery(config: Optional[str]):
     cfg = get_config()
 
     clusters = discover_clusters(cfg.rac_path, cfg.rac_host, cfg.rac_port, cfg.rac_timeout)
-    result = {"data": clusters}
+    
+    # Преобразуем id в CLUSTER_ID для Zabbix LLD
+    lld_data = []
+    for cluster in clusters:
+        lld_cluster = {
+            "{#CLUSTER_ID}": cluster.get("id", ""),
+            "{#CLUSTER_NAME}": cluster.get("name", ""),
+            "{#CLUSTER_HOST}": cluster.get("host", ""),
+            "{#CLUSTER_PORT}": str(cluster.get("port", "")),
+            "{#CLUSTER_STATUS}": cluster.get("status", ""),
+        }
+        lld_data.append(lld_cluster)
+    
+    result = {"data": lld_data}
 
     safe_output(result, indent=2, default=str)
 

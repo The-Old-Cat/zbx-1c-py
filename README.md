@@ -2,16 +2,28 @@
 
 Кроссплатформенный инструмент для интеграции 1С:Предприятия с системой мониторинга Zabbix.
 
+## 📚 Документация
+
+**Вся документация в [`docs/`](docs/) с единой нумерацией:**
+
+| № | Документ | Описание |
+|---|----------|----------|
+| 01 | [docs/01-quickstart.md](docs/01-quickstart.md) | Быстрый старт |
+| 02 | [docs/02-deployment.md](docs/02-deployment.md) | Развёртывание |
+| 04 | [docs/04-zabbix-integration.md](docs/04-zabbix-integration.md) | Интеграция с Zabbix |
+
+**Полный список:** [docs/README.md](docs/README.md)
+
+---
+
 ## ⚠️ Важно: Модульная архитектура
 
-Проект разделен на **два независимых пакета** для гибкого развертывания:
+Проект разделён на **два независимых пакета** для гибкого развёртывания:
 
-| Пакет | Назначение |
-|-------|------------|
-| **[packages/zbx-1c-rac](packages/zbx-1c-rac/)** | Мониторинг через RAC (сессии, задания, кластеры) |
-| **[packages/zbx-1c-techlog](packages/zbx-1c-techlog/)** | Мониторинг через техжурнал 1С (ошибки, блокировки, SQL) |
-
-📖 **Полная документация:** [packages/README.md](packages/README.md)
+| Пакет | Назначение | Документация |
+|-------|------------|--------------|
+| **[packages/zbx-1c-rac](packages/zbx-1c-rac/)** | Мониторинг через RAC | [docs/02-zbx-1c-rac.md](docs/02-zbx-1c-rac.md) |
+| **[packages/zbx-1c-techlog](packages/zbx-1c-techlog/)** | Мониторинг через техжурнал | [docs/02-zbx-1c-techlog.md](docs/02-zbx-1c-techlog.md) |
 
 ---
 
@@ -23,7 +35,6 @@
 cd packages/zbx-1c-rac
 pip install -e .
 cp ../../.env.rac.example ../../.env.rac
-# Настройте .env.rac
 zbx-1c-rac check-config
 ```
 
@@ -33,7 +44,6 @@ zbx-1c-rac check-config
 cd packages/zbx-1c-techlog
 pip install -e .
 cp ../../.env.techlog.example ../../.env.techlog
-# Настройте .env.techlog
 zbx-1c-techlog check
 ```
 
@@ -43,61 +53,7 @@ zbx-1c-techlog check
 pip install -e ./packages/zbx-1c-rac -e ./packages/zbx-1c-techlog
 ```
 
----
-
-## 📋 Старая структура (монолит)
-
-Исходный код в `src/zbx_1c/` сохраняется для обратной совместимости.
-Для нового развертывания используйте модульные пакеты в `packages/`.
-
----
-
-```
-zbx-1c-py/
-├── src/zbx_1c/                  # Главный пакет
-│   ├── __init__.py
-│   ├── __main__.py              # Точка входа: python -m zbx_1c
-│   ├── api/                     # REST API
-│   │   ├── __init__.py
-│   │   ├── main.py              # FastAPI приложение
-│   │   ├── routes.py            # Маршруты API
-│   │   └── dependencies.py      # Зависимости API
-│   ├── cli/                     # CLI интерфейс
-│   │   ├── __init__.py
-│   │   ├── commands.py          # Команды CLI
-│   ├── core/                    # Ядро приложения
-│   │   ├── __init__.py
-│   │   ├── config.py            # Конфигурация (Settings)
-│   │   ├── exceptions.py        # Исключения
-│   │   ├── logging.py           # Настройка логирования
-│   │   └── models.py            # Модели данных
-│   ├── monitoring/              # Модули мониторинга
-│   │   ├── cluster/             # Управление кластерами
-│   │   │   ├── __init__.py
-│   │   │   ├── manager.py       # ClusterManager
-│   │   │   └── discovery.py     # Обнаружение кластеров
-│   │   ├── infobase/            # Информационные базы
-│   │   │   ├── __init__.py
-│   │   │   ├── finder.py        # Поиск ИБ
-│   │   │   ├── analyzer.py      # Анализ нагрузки
-│   │   │   └── monitor.py       # Мониторинг ИБ
-│   │   ├── session/             # Сессии
-│   │   │   ├── __init__.py
-│   │   │   ├── collector.py     # Сбор сессий + CLI
-│   │   │   └── filters.py       # Фильтрация сессий
-│   │   ├── jobs/                # Фоновые задания
-│   │   │   ├── __init__.py
-│   │   │   └── reader.py        # Чтение заданий
-│   │   └── server/              # Серверы 1С (резерв)
-│   │       └── .gitkeep
-│   └── utils/                   # Утилиты
-│       ├── __init__.py
-│       ├── rac_client.py        # RAC клиент
-│       ├── converters.py        # Парсинг вывода rac
-│       ├── fs.py                # Работа с файловой системой
-│       └── net.py               # Сетевые утилиты
-├── tests/                       # Тесты
-├── scripts/                     # Скрипты
+**📖 Полная инструкция:** [docs/01-quickstart.md](docs/01-quickstart.md)
 │   ├── README.md
 │   ├── deploy/                  # Скрипты развёртывания
 │   │   └── .gitkeep

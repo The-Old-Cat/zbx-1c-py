@@ -1,28 +1,56 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Виртуальные окружения
 .venv/
+venv/
+ENV/
+
+# Переменные окружения
 .env
 .env.local
 .env.rac
 .env.rac.*
 .env.techlog
 .env.techlog.*
+
+# UV
 uv.lock
+
+# Build
 dist/
 build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Кэш и тесты
 .pytest_cache/
 .pylintdash/
 .pylintrc_v2
 .qodo
 .cspell/
+
+# Логи
 logs/*
 !logs/.gitkeep
-data/*
-!data/.gitkeep
-tests/*
-!tests/.gitkeep
+
+# Zabbix
 zabbix/userparameters/*.old
 zabbix/userparameters/*.bak
 !zabbix/userparameters/*.conf
 !zabbix/userparameters/.gitkeep
+
+# Документация (дубли в packages/)
+packages/**/*.md
+!packages/.gitkeep
 

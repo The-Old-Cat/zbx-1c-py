@@ -16,8 +16,18 @@ def decode_output(data: bytes) -> str:
     Returns:
         Декодированная строка.
     """
-    # Пробуем UTF-8, затем CP1251 (для Windows/Russian)
-    for encoding in ["utf-8", "cp1251", "latin-1"]:
+    import sys
+    
+    # 1C на Windows использует OEM кодировку (CP866 для Russian)
+    # На Linux обычно UTF-8
+    if sys.platform == "win32":
+        # Windows: пробуем OEM кодировку, затем Windows Cyrillic
+        encodings = ["cp866", "cp1251", "utf-8", "latin-1"]
+    else:
+        # Linux/macOS: пробуем UTF-8, затем другие
+        encodings = ["utf-8", "cp1251", "latin-1"]
+    
+    for encoding in encodings:
         try:
             return data.decode(encoding)
         except UnicodeDecodeError:

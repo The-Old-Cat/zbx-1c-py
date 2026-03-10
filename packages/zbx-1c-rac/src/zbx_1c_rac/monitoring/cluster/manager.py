@@ -83,9 +83,9 @@ class ClusterManager:
         Returns:
             Метрики кластера.
         """
-        from .infobase.monitor import InfobaseMonitor
-        from .jobs.reader import JobReader
-        from .session.collector import SessionCollector
+        from ...monitoring.infobase.monitor import InfobaseMonitor
+        from ...monitoring.jobs.reader import JobReader
+        from ...monitoring.session.collector import SessionCollector
 
         cluster = self.get_cluster(cluster_id)
         if not cluster:
@@ -152,6 +152,7 @@ class ClusterManager:
             Информация о памяти процессов.
         """
         import psutil
+        import sys
 
         result = {
             "rphost": {"count": 0, "memory_mb": 0},
@@ -161,11 +162,20 @@ class ClusterManager:
         }
 
         # Имена процессов для разных ОС
-        process_names = {
-            "rphost": ["rphost", "1cv8c"],
-            "rmngr": ["rmngr", "ragent"],
-            "ragent": ["ragent"],
-        }
+        if sys.platform == "win32":
+            # Windows
+            process_names = {
+                "rphost": ["rphost", "1cv8c", "1cv8"],
+                "rmngr": ["rmngr", "ragent"],
+                "ragent": ["ragent"],
+            }
+        else:
+            # Linux
+            process_names = {
+                "rphost": ["rphost", "1cv8c", "1cv8"],
+                "rmngr": ["rmngr", "ragent"],
+                "ragent": ["ragent"],
+            }
 
         for proc in psutil.process_iter(["name", "memory_info"]):
             try:
