@@ -27,20 +27,13 @@ class JobReader:
         Returns:
             Список заданий.
         """
-        # В версиях 1С до 8.3.24 нет команды 'job list',
-        # поэтому получаем задания из connection list
+        # Пробуем команду 'job list' (1С 8.3.24+)
+        # Синтаксис: rac job list host:port/cluster (без аутентификации)
         cmd_parts = [
-            "connection",
+            "job",
             "list",
-            f"--cluster={cluster_id}",
+            f"{self.config.rac_host}:{self.config.rac_port}/{cluster_id}",
         ]
-
-        if self.config.user_name:
-            cmd_parts.append(f"--cluster-user={self.config.user_name}")
-        if self.config.user_pass:
-            cmd_parts.append(f"--cluster-pwd={self.config.user_pass}")
-
-        cmd_parts.append(f"{self.config.rac_host}:{self.config.rac_port}")
 
         result = execute_rac_command(
             self.config.rac_path,
@@ -48,21 +41,57 @@ class JobReader:
             self.config.rac_timeout,
         )
 
+        # Если job list не сработала, используем connection list
         if not result or result["returncode"] != 0 or not result["stdout"]:
-            return []
+            # Синтаксис 1С 8.3.27+: rac connection list --cluster-user=... --cluster-pwd=... --cluster=UUID host:port
+            cmd_parts = [
+                "connection",
+                "list",
+            ]
+
+            # Параметры аутентификации должны идти ПЕРЕД --cluster
+            if self.config.user_name:
+                cmd_parts.append(f"--cluster-user={self.config.user_name}")
+            if self.config.user_pass:
+                cmd_parts.append(f"--cluster-pwd={self.config.user_pass}")
+
+            cmd_parts.append(f"--cluster={cluster_id}")
+            cmd_parts.append(f"{self.config.rac_host}:{self.config.rac_port}")
+
+            result = execute_rac_command(
+                self.config.rac_path,
+                cmd_parts,
+                self.config.rac_timeout,
+            )
+
+            if not result or result["returncode"] != 0 or not result["stdout"]:
+                return []
+
+            from ...utils.converters import parse_rac_output
+
+            connections = parse_rac_output(result["stdout"])
+
+            # Фильтруем только фоновые задания
+            jobs = []
+            for conn in connections:
+                app = conn.get("application", "")
+                if "JobScheduler" in app or "SystemBackgroundJob" in app or "BackgroundJob" in app:
+                    # Преобразуем формат connection в формат job
+                    job = {
+                        "job-id": conn.get("conn-id", ""),
+                        "infobase": conn.get("infobase", ""),
+                        "started-at": conn.get("connected-at", ""),
+                        "status": "running",
+                        "description": f"Background job: {app}",
+                        "host": conn.get("host", ""),
+                        "application": app,
+                    }
+                    jobs.append(job)
+
+            return jobs
 
         from ...utils.converters import parse_rac_output
-
-        connections = parse_rac_output(result["stdout"])
-
-        # Фильтруем только фоновые задания
-        jobs = []
-        for conn in connections:
-            app = conn.get("app", "")
-            if "JobScheduler" in app or "BackgroundJob" in app:
-                jobs.append(conn)
-
-        return jobs
+        return parse_rac_output(result["stdout"])
 
     def get_active_jobs(self, cluster_id: str) -> List[Dict[str, Any]]:
         """
@@ -80,9 +109,12 @@ class JobReader:
         for job in jobs:
             hibernate = job.get("hibernate", "no").lower()
             status = job.get("status", "")
+            app = job.get("application", job.get("app", ""))
 
             # JobScheduler всегда активен, остальные по hibernate
-            if "JobScheduler" in job.get("app", ""):
+            if "JobScheduler" in app:
+                active.append(job)
+            elif "SystemBackgroundJob" in app and status == "running":
                 active.append(job)
             elif hibernate == "no" or status == "running":
                 active.append(job)

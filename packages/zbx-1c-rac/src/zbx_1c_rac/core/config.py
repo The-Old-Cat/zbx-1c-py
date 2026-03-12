@@ -12,7 +12,9 @@ from pydantic import Field, field_validator
 
 def get_project_root() -> Path:
     """Получить корневую директорию проекта"""
-    return Path(__file__).resolve().parent.parent.parent.parent.parent
+    # __file__ = packages/zbx-1c-rac/src/zbx_1c_rac/core/config.py
+    # Нужно подняться на 6 уровней вверх до корня проекта
+    return Path(__file__).resolve().parent.parent.parent.parent.parent.parent
 
 
 def get_default_log_path() -> Path:

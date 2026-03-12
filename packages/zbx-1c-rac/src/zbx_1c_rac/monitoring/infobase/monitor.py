@@ -27,18 +27,20 @@ class InfobaseMonitor:
         Returns:
             Список ИБ.
         """
+        # Синтаксис 1С 8.3.27+: rac infobase summary list --cluster-user=... --cluster-pwd=... --cluster=UUID host:port
         cmd_parts = [
             "infobase",
             "summary",
             "list",
-            f"--cluster={cluster_id}",
         ]
 
+        # Параметры аутентификации должны идти ПЕРЕД --cluster
         if self.config.user_name:
             cmd_parts.append(f"--cluster-user={self.config.user_name}")
         if self.config.user_pass:
             cmd_parts.append(f"--cluster-pwd={self.config.user_pass}")
 
+        cmd_parts.append(f"--cluster={cluster_id}")
         cmd_parts.append(f"{self.config.rac_host}:{self.config.rac_port}")
 
         result = execute_rac_command(

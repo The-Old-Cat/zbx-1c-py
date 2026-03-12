@@ -153,6 +153,7 @@ class ClusterManager:
         """
         import psutil
         import sys
+        import os
 
         result = {
             "rphost": {"count": 0, "memory_mb": 0},
@@ -161,29 +162,30 @@ class ClusterManager:
             "total_mb": 0,
         }
 
-        # Имена процессов для разных ОС
+        # Имена процессов для разных ОС (с учётом .exe для Windows)
         if sys.platform == "win32":
-            # Windows
+            # Windows - точные имена с .exe
             process_names = {
-                "rphost": ["rphost", "1cv8c", "1cv8"],
-                "rmngr": ["rmngr", "ragent"],
-                "ragent": ["ragent"],
+                "rphost": ["rphost.exe", "1cv8c.exe", "1cv8.exe"],
+                "rmngr": ["rmngr.exe"],
+                "ragent": ["ragent.exe"],
             }
         else:
-            # Linux
+            # Linux/macOS - имена без расширения
             process_names = {
                 "rphost": ["rphost", "1cv8c", "1cv8"],
-                "rmngr": ["rmngr", "ragent"],
+                "rmngr": ["rmngr"],
                 "ragent": ["ragent"],
             }
 
         for proc in psutil.process_iter(["name", "memory_info"]):
             try:
-                proc_name = proc.info["name"].lower()
+                # Получаем только имя файла без пути (кроссплатформенно)
+                proc_name = os.path.basename(proc.info["name"]).lower()
                 memory_mb = proc.info["memory_info"].rss / 1024 / 1024
 
                 for key, names in process_names.items():
-                    if any(name in proc_name for name in names):
+                    if proc_name in names:
                         result[key]["count"] += 1
                         result[key]["memory_mb"] += memory_mb
                         result["total_mb"] += memory_mb
