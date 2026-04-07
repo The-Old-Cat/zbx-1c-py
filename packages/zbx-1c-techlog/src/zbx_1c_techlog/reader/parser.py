@@ -528,38 +528,47 @@ class TechJournalParser:
         file_mtime = file_path.stat().st_mtime
 
         # Пытаемся открыть файл с共享 доступом (как Блокнот)
-        try:
-            lines = _open_file_shared(file_path, encoding="cp1251")
-            for line in lines:
-                self.stats.total_lines += 1
-                entry = LogEntry.from_line(line, source_file=str(file_path), file_mtime=file_mtime)
-                if entry:
-                    self.stats.add_entry(entry)
-                    yield entry
-                else:
-                    self.stats.add_failed()
-            return
-        except (IOError, OSError, PermissionError):
-            # Fallback на стандартное открытие с перебором кодировок
-            encodings = ["utf-8", "cp1251", "cp866", "latin-1"]
-            for encoding in encodings:
-                try:
-                    with open(file_path, "r", encoding=encoding) as f:
-                        for line in f:
-                            self.stats.total_lines += 1
-                            entry = LogEntry.from_line(
-                                line, source_file=str(file_path), file_mtime=file_mtime
-                            )
-                            if entry:
-                                self.stats.add_entry(entry)
-                                yield entry
-                            else:
-                                self.stats.add_failed()
-                    return  # Успешно прочитали
-                except UnicodeDecodeError:
-                    continue
-                except Exception:
-                    break
+        # Пробуем разные кодировки: UTF-8 -> CP1251 -> CP866
+        encodings_shared = ["utf-8", "cp1251", "cp866"]
+        for encoding in encodings_shared:
+            try:
+                lines = _open_file_shared(file_path, encoding=encoding)
+                for line in lines:
+                    self.stats.total_lines += 1
+                    entry = LogEntry.from_line(
+                        line, source_file=str(file_path), file_mtime=file_mtime
+                    )
+                    if entry:
+                        self.stats.add_entry(entry)
+                        yield entry
+                    else:
+                        self.stats.add_failed()
+                return  # Успешно прочитали
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+            except (IOError, OSError, PermissionError):
+                break
+
+        # Fallback на стандартное открытие с перебором кодировок
+        encodings = ["utf-8", "cp1251", "cp866", "latin-1"]
+        for encoding in encodings:
+            try:
+                with open(file_path, "r", encoding=encoding) as f:
+                    for line in f:
+                        self.stats.total_lines += 1
+                        entry = LogEntry.from_line(
+                            line, source_file=str(file_path), file_mtime=file_mtime
+                        )
+                        if entry:
+                            self.stats.add_entry(entry)
+                            yield entry
+                        else:
+                            self.stats.add_failed()
+                return  # Успешно прочитали
+            except UnicodeDecodeError:
+                continue
+            except Exception:
+                break
 
     def parse_directory(
         self,
