@@ -9,8 +9,13 @@ from pydantic import Field, field_validator
 
 
 def get_project_root() -> Path:
-    """Получить корневую директорию проекта"""
-    return Path(__file__).resolve().parent.parent.parent.parent.parent
+    """
+    Получить корневую директорию проекта.
+
+    __file__ = packages/zbx-1c-techlog/src/zbx_1c_techlog/core/config.py
+    Нужно подняться на 6 уровней вверх до корня проекта
+    """
+    return Path(__file__).resolve().parent.parent.parent.parent.parent.parent
 
 
 class TechlogConfig(BaseSettings):

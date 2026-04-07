@@ -21,6 +21,8 @@ dependencies = [
     "pydantic>=2.6.0",
     "pydantic-settings>=2.12.0",
     "click>=8.0.0",
+    "fastapi>=0.129.0",
+    "uvicorn>=0.40.0",
 ]
 
 [project.optional-dependencies]
@@ -31,9 +33,6 @@ dev = [
     "pylint>=3.0.0",
     "mypy>=1.8.0",
 ]
-zabbix-api = [
-    "requests>=2.28.0",
-]
 
 [dependency-groups]
 dev = [
@@ -42,6 +41,7 @@ dev = [
     "black>=24.0.0",
     "pylint>=3.0.0",
     "mypy>=1.8.0",
+    "httpx>=0.25.0",
 ]
 
 [project.scripts]
@@ -50,6 +50,9 @@ zbx-1c-techlog-collect = "zbx_1c_techlog.cli.__main__:collect"
 zbx-1c-techlog-send = "zbx_1c_techlog.cli.__main__:send"
 zbx-1c-techlog-summary = "zbx_1c_techlog.cli.__main__:summary"
 zbx-1c-techlog-check = "zbx_1c_techlog.cli.__main__:check_logs"
+zbx-1c-techlog-structure = "zbx_1c_techlog.cli.__main__:show_structure"
+# API server
+zbx-1c-techlog-api = "zbx_1c_techlog.api.server:main"
 
 [project.urls]
 Homepage = "https://github.com/your-repo/zbx-1c"

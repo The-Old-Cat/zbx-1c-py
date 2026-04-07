@@ -6,6 +6,11 @@ from typing import Optional
 
 import click
 
+# Исправление кодировки для Windows
+if sys.platform == "win32":
+    import codecs
+    sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer, errors="replace")
+
 from ..core.config import TechlogConfig, get_config
 from ..reader.collector import MetricsCollector
 from ..zabbix_sender import ZabbixSender
@@ -15,6 +20,28 @@ from ..zabbix_sender import ZabbixSender
 def cli():
     """Zabbix-1C TechJournal Monitoring Tool"""
     pass
+
+
+@cli.command("structure")
+@click.option("--config", "-c", help="Path to config file", default=None)
+@click.option("--json-output", is_flag=True, help="Output in JSON format")
+def show_structure(config: Optional[str], json_output: bool):
+    """
+    Показать обнаруженную структуру логов техжурнала
+
+    Автоматически находит все поддиректории с логами,
+    определяет форматы и выводит информацию.
+    """
+    cfg = get_config()
+    collector = MetricsCollector(cfg.logs_base_path)
+
+    if json_output:
+        import json
+        structure = collector.log_structure.to_dict() if collector.log_structure else {}
+        click.echo(json.dumps(structure, indent=2, ensure_ascii=False))
+    else:
+        summary = collector.get_structure_info()
+        click.echo(summary)
 
 
 @cli.command("collect")
@@ -32,7 +59,7 @@ def collect(config: Optional[str], period_minutes: int, json_output: bool):
     """
     Сбор метрик из техжурнала 1С
 
-    Считывает логи из директорий core, perf, locks, sql, zabbix
+    Считывает логи из обнаруженных директорий
     и собирает статистику по событиям за указанный период.
     """
     cfg = get_config()
@@ -157,17 +184,25 @@ def check_logs(config: Optional[str]):
     click.echo(f"✓ Директория существует: {log_path}")
     click.echo()
 
-    for subdir in subdirs:
-        dir_path = log_path / subdir
-        if dir_path.exists():
-            log_files = list(dir_path.glob("*.log"))
-            click.echo(f"✓ {subdir:12s} - {len(log_files)} файлов логов")
-            if log_files:
-                latest = max(log_files, key=lambda f: f.stat().st_mtime)
-                size_mb = latest.stat().st_size / 1024 / 1024
-                click.echo(f"    └─ Последний: {latest.name} ({size_mb:.2f} MB)")
-        else:
-            click.echo(f"✗ {subdir:12s} - не найдено")
+    # Используем автообнаружение
+    collector = MetricsCollector(log_path)
+
+    if collector.log_structure:
+        click.echo("НАЙДЕННЫЕ ДИРЕКТОРИИ (автообнаружение):")
+        for dir_name, dir_info in collector.log_structure.directories.items():
+            click.echo(f"✓ {dir_name:12s} - {dir_info.file_count} файлов ({dir_info.total_size_bytes / 1024 / 1024:.2f} MB)")
+    else:
+        for subdir in subdirs:
+            dir_path = log_path / subdir
+            if dir_path.exists():
+                log_files = list(dir_path.glob("*.log"))
+                click.echo(f"✓ {subdir:12s} - {len(log_files)} файлов логов")
+                if log_files:
+                    latest = max(log_files, key=lambda f: f.stat().st_mtime)
+                    size_mb = latest.stat().st_size / 1024 / 1024
+                    click.echo(f"    └─ Последний: {latest.name} ({size_mb:.2f} MB)")
+            else:
+                click.echo(f"✗ {subdir:12s} - не найдено")
 
     click.echo("=" * 60)
 
