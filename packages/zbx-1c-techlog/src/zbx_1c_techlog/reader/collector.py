@@ -360,16 +360,14 @@ class MetricsCollector:
 
         if metrics.long_locks.count > 0:
             lines.append(
-                f"  └─ Средняя длительность блокировок: {metrics.long_locks.avg_duration_ms} мс"
+                f"  └─ Средняя длительность блокировок: {metrics.long_locks.avg_duration} мс"
             )
 
         if metrics.long_calls.count > 0:
-            lines.append(
-                f"  └─ Средняя длительность вызовов: {metrics.long_calls.avg_duration_ms} мс"
-            )
+            lines.append(f"  └─ Средняя длительность вызовов: {metrics.long_calls.avg_duration} мс")
 
         if metrics.slow_sql.count > 0:
-            lines.append(f"  └─ Средняя длительность SQL: {metrics.slow_sql.avg_duration_ms} мс")
+            lines.append(f"  └─ Средняя длительность SQL: {metrics.slow_sql.avg_duration} мс")
 
         lines.append("=" * 60)
 
