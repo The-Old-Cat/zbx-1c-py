@@ -147,8 +147,8 @@ class LogStructureDiscovery:
                 if dir_info.file_count > 0:
                     structure.add_directory(dir_info)
 
-        # 3. Ищем .log файлы в корневой директории
-        root_logs = self._scan_directory(base_path, "root")
+        # 3. Ищем .log файлы в корневой директории (только в корне, без рекурсии)
+        root_logs = self._scan_directory(base_path, "root", recursive=False)
         if root_logs.file_count > 0:
             structure.add_directory(root_logs)
 
@@ -157,14 +157,17 @@ class LogStructureDiscovery:
 
         return structure
 
-    def _scan_directory(self, dir_path: Path, log_type: str) -> LogDirectory:
+    def _scan_directory(
+        self, dir_path: Path, log_type: str, recursive: bool = True
+    ) -> LogDirectory:
         """
         Сканировать директорию на наличие файлов логов.
-        Рекурсивно обходит все вложенные поддиректории.
 
         Args:
             dir_path: Путь к директории.
             log_type: Тип логов.
+            recursive: Рекурсивно обходить вложенные поддиректории.
+                       Для корневой директории следует использовать False.
 
         Returns:
             LogDirectory с информацией о директории.
@@ -172,8 +175,13 @@ class LogStructureDiscovery:
         dir_info = LogDirectory(path=dir_path, log_type=log_type)
 
         try:
-            # Рекурсивно ищем все .log файлы
-            for file_path in dir_path.rglob("*.log"):
+            # Ищем .log файлы (рекурсивно или только в корне)
+            if recursive:
+                log_files = dir_path.rglob("*.log")
+            else:
+                log_files = dir_path.glob("*.log")
+
+            for file_path in log_files:
                 # Пропускаем директории, проверяем только файлы
                 if not file_path.is_file():
                     continue

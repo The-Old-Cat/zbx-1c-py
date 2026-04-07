@@ -77,10 +77,7 @@ class TestLogEntryParser:
         from zbx_1c_techlog.reader.parser import LogEntry
 
         line = "00:00.035002-1,CALL,1,p:processName=TestProc,t:computerName=srv-1c,Method=29"
-        entry = LogEntry.from_line(
-            line,
-            source_file="G:/1c_log/processes/rmngr_6884/26031810.log"
-        )
+        entry = LogEntry.from_line(line, source_file="G:/1c_log/processes/rmngr_6884/26031810.log")
 
         assert entry is not None
         assert entry.event_name == "CALL"
@@ -94,8 +91,7 @@ class TestLogEntryParser:
 
         line = "10:30:00.123456-1,EXCP,1,p:processName=1CV8C,t:computerName=srv-1c"
         entry = LogEntry.from_line(
-            line,
-            source_file="G:/1c_log/core/18032610.log"  # 18.03.2026 10:00
+            line, source_file="G:/1c_log/core/18032610.log"  # 18.03.2026 10:00
         )
 
         assert entry is not None
@@ -156,7 +152,7 @@ class TestTechJournalParser:
                 "2024-01-15 10:31:00.456+0300 CALL process computer user Duration: 100000\n"
                 "invalid line\n"
                 "2024-01-15 10:32:00.789+0300 ATTN process computer user Warning\n",
-                encoding="utf-8"
+                encoding="utf-8",
             )
 
             parser = TechJournalParser(tmpdir)
@@ -189,18 +185,22 @@ class TestLogStructureDiscovery:
             # Создаём стандартные поддиректории
             for subdir in ["core", "perf", "locks", "sql", "zabbix"]:
                 (base_path / subdir).mkdir()
-                # Создаём тестовые файлы
+                # Создаём тестовые файлы с расширением .log
                 ((base_path / subdir) / "test.log").write_text("test")
-                ((base_path / subdir) / "rac_1234").write_text("test")
+                ((base_path / subdir) / "rac_1234.log").write_text("test")
+
+            # Создаём файлы в корне для проверки root
+            (base_path / "root_test.log").write_text("test")
 
             discovery = LogStructureDiscovery()
             structure = discovery.discover(base_path)
 
             assert structure.base_path == base_path
             # 5 поддиректорий + root (корневая директория тоже сканируется)
-            assert len(structure.directories) >= 5
+            assert len(structure.directories) >= 6  # 5 subdir + root
             assert "core" in structure.directories
-            assert structure.total_files >= 10
+            assert "root" in structure.directories
+            assert structure.total_files >= 11  # 5*2 + 1 root file
 
     def test_discover_nested_structure(self):
         """Обнаружение вложенной структуры (как в G:\1c_log)"""
@@ -339,7 +339,7 @@ class TestMetricsCollector:
                 "2024-01-15 10:30:00.123+0300 EXCP process computer user Error\n"
                 "2024-01-15 10:31:00.456+0300 TDEADLOCK process computer user Deadlock\n"
                 "2024-01-15 10:32:00.789+0300 CALL process computer user Duration: 500000\n",
-                encoding="utf-8"
+                encoding="utf-8",
             )
 
             collector = MetricsCollector(base_path)
@@ -424,7 +424,7 @@ class TestIntegration:
                 "2024-03-18 10:30:00.123+0300 EXCP 1CV8C srv-1c user Critical error\n"
                 "2024-03-18 10:31:00.456+0300 TTIMEOUT 1CV8C srv-1c user Timeout error\n"
                 "2024-03-18 10:32:00.789+0300 CALL 1CV8C srv-1c user Duration: 1000000\n",
-                encoding="utf-8"
+                encoding="utf-8",
             )
 
             # 1. Обнаружение

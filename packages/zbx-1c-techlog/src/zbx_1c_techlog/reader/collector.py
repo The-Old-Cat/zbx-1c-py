@@ -209,8 +209,10 @@ class MetricsCollector:
         if to_time.tzinfo is not None:
             to_time = to_time.replace(tzinfo=None)
 
-        # Парсим все найденные директории
-        directories = self.get_log_directories() if self.log_structure else []
+        # Парсим все найденные директории (исключаем 'root' — это служебная запись)
+        directories = [
+            d for d in self.get_log_directories() if not str(d) == str(self.log_base_path)
+        ]
 
         # Если ничего не найдено, пробуем стандартные имена
         if not directories and self.log_base_path.exists():
