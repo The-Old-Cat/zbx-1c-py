@@ -533,13 +533,6 @@ findstr "module=ОбщегоНазначения" E:\1c_log\LONG_CALLS\*.log
 
 ---
 
-## 🔗 Полезные ссылки
-
-- [Руководство администратора 1С (раздел 3.17)](https://users.v8.1c.ru/Adm1936.aspx)
-- [Обработка "Настройка технологического журнала" на ИТС](https://its.1c.ru/db/metod8dev/content/3474/hdoc)
-- [Gilev.ru — Технологический журнал](http://www.gilev.ru/techjournal/)
-
----
 
 ## 📝 Версии
 
