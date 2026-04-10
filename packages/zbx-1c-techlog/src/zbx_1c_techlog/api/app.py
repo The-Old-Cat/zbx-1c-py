@@ -23,7 +23,8 @@ from .schemas import (
     AnalyticsResponse,
     InsightResponse,
     UserImpactResponse,
-    ProblemItemResponse,
+    ProblemGroupResponse,
+    ProblemExampleResponse,
 )
 
 app = FastAPI(
@@ -301,8 +302,9 @@ async def get_analytics(
     analyzer = TechJournalAnalyzer(collector)
     result = analyzer.analyze(period_minutes=period_minutes)
 
-    # Собираем детали проблем из событий
-    problems = []
+    # Собираем и группируем проблемы из событий
+    # Структура: {problem_type: {severity, count, users, processes, computers, durations, timestamps, examples}}
+    problem_groups: dict[str, dict] = {}
     directories = collector.get_log_directories()
     if not directories and collector.log_base_path.exists():
         for subdir in ["core", "perf", "locks", "sql", "zabbix"]:
@@ -314,11 +316,12 @@ async def get_analytics(
     from_time = to_time - timedelta(minutes=period_minutes)
     min_mtime = from_time.timestamp() - 900
 
-    # Ограничиваем количество проблем (последние 200)
-    max_problems = 200
+    # Ограничиваем количество обрабатываемых событий
+    max_events = 2000
+    events_processed = 0
 
     for log_dir in directories:
-        if len(problems) >= max_problems:
+        if events_processed >= max_events:
             break
 
         parser = TechJournalParser(log_dir)
@@ -328,6 +331,7 @@ async def get_analytics(
             min_mtime=min_mtime,
             limit_files=500,
         ):
+            events_processed += 1
             event_upper = entry.event_name.upper()
             problem_type = None
             severity = "info"
@@ -354,22 +358,71 @@ async def get_analytics(
                     severity = "info"
 
             if problem_type:
-                problems.append(
-                    ProblemItemResponse(
-                        problem_type=problem_type,
-                        severity=severity,
-                        timestamp=entry.timestamp.isoformat(),
-                        user=entry.user,
-                        process=entry.process_name,
-                        computer=entry.computer_name,
-                        description=entry.description[:300] if entry.description else None,
-                        duration_ms=round(entry.duration / 1000, 2) if entry.duration else None,
-                        source_file=entry.source_file,
-                    )
-                )
+                if problem_type not in problem_groups:
+                    problem_groups[problem_type] = {
+                        "severity": severity,
+                        "count": 0,
+                        "users": set(),
+                        "processes": set(),
+                        "computers": set(),
+                        "durations": [],
+                        "timestamps": [],
+                        "examples": [],
+                    }
 
-                if len(problems) >= max_problems:
-                    break
+                group = problem_groups[problem_type]
+                group["count"] += 1
+
+                if entry.user:
+                    group["users"].add(entry.user)
+                if entry.process_name:
+                    group["processes"].add(entry.process_name)
+                if entry.computer_name:
+                    group["computers"].add(entry.computer_name)
+                if entry.duration:
+                    group["durations"].append(entry.duration)
+
+                group["timestamps"].append(entry.timestamp)
+
+                # Сохраняем до 3 примеров
+                if len(group["examples"]) < 3:
+                    group["examples"].append(
+                        ProblemExampleResponse(
+                            timestamp=entry.timestamp.isoformat(),
+                            user=entry.user,
+                            process=entry.process_name,
+                            computer=entry.computer_name,
+                            description=entry.description[:300] if entry.description else None,
+                            duration_ms=round(entry.duration / 1000, 2) if entry.duration else None,
+                        )
+                    )
+
+    # Формируем сгруппированные проблемы
+    problems = []
+    for problem_type, group in problem_groups.items():
+        timestamps = group["timestamps"]
+        durations = group["durations"]
+
+        problems.append(
+            ProblemGroupResponse(
+                problem_type=problem_type,
+                severity=group["severity"],
+                count=group["count"],
+                unique_users=sorted(group["users"]),
+                unique_processes=sorted(group["processes"]),
+                unique_computers=sorted(group["computers"]),
+                first_seen=min(timestamps).isoformat() if timestamps else None,
+                last_seen=max(timestamps).isoformat() if timestamps else None,
+                avg_duration_ms=(
+                    round(sum(durations) / len(durations) / 1000, 2) if durations else None
+                ),
+                examples=group["examples"],
+            )
+        )
+
+    # Сортируем по критичности и количеству
+    severity_order = {"critical": 0, "warning": 1, "info": 2}
+    problems.sort(key=lambda p: (severity_order.get(p.severity, 3), -p.count))
 
     def make_insight(ins) -> InsightResponse:
         return InsightResponse(

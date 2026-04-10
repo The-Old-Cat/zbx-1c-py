@@ -132,18 +132,30 @@ class UserImpactResponse(BaseModel):
     total_events: int = 0
 
 
-class ProblemItemResponse(BaseModel):
-    """Отдельная проблема для диагностики"""
+class ProblemExampleResponse(BaseModel):
+    """Пример проблемы для диагностики"""
 
-    problem_type: str  # "error", "deadlock", "timeout", "slow_sql", "long_lock", "long_call"
-    severity: str  # "critical", "warning", "info"
     timestamp: Optional[str] = None
     user: Optional[str] = None
     process: Optional[str] = None
     computer: Optional[str] = None
     description: Optional[str] = None
     duration_ms: Optional[float] = None
-    source_file: Optional[str] = None
+
+
+class ProblemGroupResponse(BaseModel):
+    """Группа однотипных проблем"""
+
+    problem_type: str  # "error", "deadlock", "timeout", "slow_sql", "long_lock", "long_call"
+    severity: str  # "critical", "warning", "info"
+    count: int  # количество повторений
+    unique_users: List[str] = []  # уникальные пользователи
+    unique_processes: List[str] = []  # уникальные процессы
+    unique_computers: List[str] = []  # уникальные компьютеры
+    first_seen: Optional[str] = None  # время первой проблемы
+    last_seen: Optional[str] = None  # время последней проблемы
+    avg_duration_ms: Optional[float] = None  # средняя длительность
+    examples: List[ProblemExampleResponse] = []  # примеры (до 3)
 
 
 class AnalyticsResponse(BaseModel):
@@ -156,7 +168,7 @@ class AnalyticsResponse(BaseModel):
     health_status: str  # "healthy", "degraded", "critical"
 
     insights: List[InsightResponse] = []
-    problems: List[ProblemItemResponse] = []  # Список проблем для диагностики
+    problems: List[ProblemGroupResponse] = []  # Сгруппированные проблемы для диагностики
     top_impacted_users: List[UserImpactResponse] = []
     top_impacted_processes: List[UserImpactResponse] = []
     recommendations: List[str] = []
