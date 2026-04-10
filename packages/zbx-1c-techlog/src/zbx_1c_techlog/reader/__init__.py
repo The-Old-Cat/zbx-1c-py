@@ -2,6 +2,7 @@
 
 from .parser import TechJournalParser, LogEntry
 from .collector import MetricsCollector, MetricsResult, EventStats
+from .analytics import TechJournalAnalyzer
 
 __all__ = [
     "TechJournalParser",
@@ -9,4 +10,5 @@ __all__ = [
     "MetricsCollector",
     "MetricsResult",
     "EventStats",
+    "TechJournalAnalyzer",
 ]

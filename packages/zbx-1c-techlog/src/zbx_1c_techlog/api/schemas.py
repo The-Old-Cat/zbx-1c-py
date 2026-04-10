@@ -102,3 +102,61 @@ class ErrorResponse(BaseModel):
 
     error: str
     detail: Optional[str] = None
+
+
+# ---------------------------------------------------------------
+# Аналитика
+# ---------------------------------------------------------------
+
+
+class InsightResponse(BaseModel):
+    """Отдельный аналитический вывод"""
+
+    severity: str  # "critical", "warning", "info"
+    category: str  # "stability", "locks", "sql", "load", "users", "trend"
+    title: str
+    description: str
+    metric_value: Optional[str] = None
+    recommendation: str = ""
+
+
+class UserImpactResponse(BaseModel):
+    """Влияние конкретного пользователя/процесса"""
+
+    entity: str
+    entity_type: str  # "user" | "process"
+    errors: int = 0
+    deadlocks: int = 0
+    timeouts: int = 0
+    slow_sql: int = 0
+    total_events: int = 0
+
+
+class ProblemItemResponse(BaseModel):
+    """Отдельная проблема для диагностики"""
+
+    problem_type: str  # "error", "deadlock", "timeout", "slow_sql", "long_lock", "long_call"
+    severity: str  # "critical", "warning", "info"
+    timestamp: Optional[str] = None
+    user: Optional[str] = None
+    process: Optional[str] = None
+    computer: Optional[str] = None
+    description: Optional[str] = None
+    duration_ms: Optional[float] = None
+    source_file: Optional[str] = None
+
+
+class AnalyticsResponse(BaseModel):
+    """Ответ эндпоинта аналитики"""
+
+    timestamp: str
+    period_minutes: int
+
+    health_score: int  # 0-100
+    health_status: str  # "healthy", "degraded", "critical"
+
+    insights: List[InsightResponse] = []
+    problems: List[ProblemItemResponse] = []  # Список проблем для диагностики
+    top_impacted_users: List[UserImpactResponse] = []
+    top_impacted_processes: List[UserImpactResponse] = []
+    recommendations: List[str] = []

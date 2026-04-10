@@ -9,9 +9,6 @@
 """
 
 import re
-import os
-import ctypes
-import ctypes.wintypes
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -20,101 +17,23 @@ from typing import Generator, List, Optional, Set
 
 def _find_files_recursive(base_path: Path, pattern: str = "*.log") -> List[Path]:
     """
-    Рекурсивный поиск файлов с использованием Windows API.
-    Обходит блокировки 1С через FindFirstFile/FindNextFile.
+    Рекурсивный поиск файлов с использованием pathlib.
     """
-    result = []
-
-    # Буфер для пути (MAX_PATH = 260)
-    path_buffer = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
-    ctypes.windll.kernel32.GetFullPathNameW(
-        str(base_path), ctypes.wintypes.MAX_PATH, path_buffer, None
-    )
-
-    # Поиск файлов в текущей директории
-    search_pattern = str(base_path / pattern)
-    find_data = ctypes.wintypes.WIN32_FIND_DATAW()
-
-    handle = ctypes.windll.kernel32.FindFirstFileW(search_pattern, ctypes.byref(find_data))
-    if handle != -1 and handle != -2:  # INVALID_HANDLE_VALUE
-        try:
-            while True:
-                file_name = find_data.cFileName
-                if file_name and file_name not in (".", ".."):
-                    file_path = base_path / file_name
-                    # Проверяем, не директория ли это
-                    if not (find_data.dwFileAttributes & 0x10):  # FILE_ATTRIBUTE_DIRECTORY = 0x10
-                        result.append(file_path)
-
-                if not ctypes.windll.kernel32.FindNextFileW(handle, ctypes.byref(find_data)):
-                    break
-        finally:
-            ctypes.windll.kernel32.FindClose(handle)
-
-    # Рекурсивный обход поддиректорий
-    dir_pattern = str(base_path / "*")
-    handle = ctypes.windll.kernel32.FindFirstFileW(dir_pattern, ctypes.byref(find_data))
-    if handle != -1 and handle != -2:
-        try:
-            while True:
-                dir_name = find_data.cFileName
-                if dir_name and dir_name not in (".", ".."):
-                    # Проверяем, директория ли это
-                    if find_data.dwFileAttributes & 0x10:  # FILE_ATTRIBUTE_DIRECTORY
-                        sub_dir = base_path / dir_name
-                        try:
-                            result.extend(_find_files_recursive(sub_dir, pattern))
-                        except (OSError, PermissionError):
-                            pass
-
-                if not ctypes.windll.kernel32.FindNextFileW(handle, ctypes.byref(find_data)):
-                    break
-        finally:
-            ctypes.windll.kernel32.FindClose(handle)
-
-    return result
+    try:
+        return list(base_path.rglob(pattern))
+    except (OSError, PermissionError):
+        return []
 
 
 def _open_file_shared(file_path: Path, encoding: str = "utf-8"):
     """
-    Открыть файл с共享 доступом (как Блокнот).
-
-    Windows блокирует файлы, открытые 1С. Используем CreateFile с FILE_SHARE_READ | FILE_SHARE_WRITE.
+    Открыть файл с использованием стандартного открытия.
     """
-    # Windows API константы
-    GENERIC_READ = 0x80000000
-    FILE_SHARE_READ = 0x00000001
-    FILE_SHARE_WRITE = 0x00000002
-    OPEN_EXISTING = 3
-
-    # Открываем файл с共享 доступом
-    handle = ctypes.windll.kernel32.CreateFileW(
-        str(file_path),
-        GENERIC_READ,
-        FILE_SHARE_READ | FILE_SHARE_WRITE,
-        None,
-        OPEN_EXISTING,
-        0,
-        None,
-    )
-
-    if handle == -1 or handle == ctypes.c_void_p(0):
-        raise IOError(f"Не удалось открыть файл: {file_path}")
-
     try:
-        # Получаем размер файла
-        file_size = ctypes.windll.kernel32.GetFileSize(handle, None)
-
-        # Читаем всё содержимое
-        buffer = ctypes.create_string_buffer(file_size)
-        bytes_read = ctypes.c_ulong(0)
-        ctypes.windll.kernel32.ReadFile(handle, buffer, file_size, ctypes.byref(bytes_read), None)
-
-        # Декодируем в строку
-        content = buffer.raw[: bytes_read.value].decode(encoding, errors="replace")
-        return content.splitlines()
-    finally:
-        ctypes.windll.kernel32.CloseHandle(handle)
+        with open(file_path, "r", encoding=encoding, errors="replace") as f:
+            return f.readlines()
+    except (IOError, OSError, PermissionError) as e:
+        raise IOError(f"Не удалось открыть файл: {file_path}: {e}")
 
 
 @dataclass

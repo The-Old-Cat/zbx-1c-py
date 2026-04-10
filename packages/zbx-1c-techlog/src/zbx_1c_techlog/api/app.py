@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from ..core.config import get_config, TechlogConfig
 from ..reader.collector import MetricsCollector
 from ..reader.discovery import LogStructureDiscovery
+from ..reader.analytics import TechJournalAnalyzer
 
 from .schemas import (
     LogStructureResponse,
@@ -19,6 +20,10 @@ from .schemas import (
     CheckResponse,
     HealthResponse,
     ErrorResponse,
+    AnalyticsResponse,
+    InsightResponse,
+    UserImpactResponse,
+    ProblemItemResponse,
 )
 
 app = FastAPI(
@@ -270,6 +275,134 @@ async def get_events(
         "limit": limit,
         "events": events,
     }
+
+
+@app.get("/api/analytics", response_model=AnalyticsResponse)
+async def get_analytics(
+    period_minutes: int = Query(default=5, ge=1, le=1440, description="Период анализа в минутах"),
+):
+    """
+    Получить аналитические выводы по техжурналу
+
+    Автоматически генерирует:
+    - **health_score** — оценка здоровья системы (0-100)
+    - **health_status** — статус (healthy / degraded / critical)
+    - **insights** — конкретные выводы с классификацией по категориям
+    - **problems** — список проблем с деталями для диагностики
+    - **top_impacted_users** — топ пользователей с наибольшим числом проблем
+    - **top_impacted_processes** — топ проблемных процессов
+    - **recommendations** — практические рекомендации
+
+    - **period_minutes**: Период анализа (1-1440 минут)
+    """
+    from ..reader.parser import TechJournalParser
+
+    collector = get_collector()
+    analyzer = TechJournalAnalyzer(collector)
+    result = analyzer.analyze(period_minutes=period_minutes)
+
+    # Собираем детали проблем из событий
+    problems = []
+    directories = collector.get_log_directories()
+    if not directories and collector.log_base_path.exists():
+        for subdir in ["core", "perf", "locks", "sql", "zabbix"]:
+            dir_path = collector.log_base_path / subdir
+            if dir_path.exists():
+                directories.append(dir_path)
+
+    to_time = datetime.now()
+    from_time = to_time - timedelta(minutes=period_minutes)
+    min_mtime = from_time.timestamp() - 900
+
+    # Ограничиваем количество проблем (последние 200)
+    max_problems = 200
+
+    for log_dir in directories:
+        if len(problems) >= max_problems:
+            break
+
+        parser = TechJournalParser(log_dir)
+        for entry in parser.parse_directory(
+            from_time=from_time,
+            to_time=to_time,
+            min_mtime=min_mtime,
+            limit_files=500,
+        ):
+            event_upper = entry.event_name.upper()
+            problem_type = None
+            severity = "info"
+
+            if event_upper in ("EXCP", "EXCEPTION", "RPHOST"):
+                problem_type = "error"
+                severity = "critical"
+            elif event_upper in ("TDEADLOCK", "DEADLOCK"):
+                problem_type = "deadlock"
+                severity = "critical"
+            elif event_upper in ("TTIMEOUT", "TIMEOUT"):
+                problem_type = "timeout"
+                severity = "warning"
+            elif event_upper in ("SDBL", "SQL", "DBMSSQL", "DBMSPOSTGRE", "DBMSORACLE"):
+                if entry.duration and entry.duration > 1000000:  # > 1 секунды в мкс
+                    problem_type = "slow_sql"
+                    severity = "warning"
+            elif event_upper in ("TLOCK", "LOCK"):
+                problem_type = "long_lock"
+                severity = "info"
+            elif event_upper == "CALL":
+                if entry.duration and entry.duration > 5000000:  # > 5 секунд
+                    problem_type = "long_call"
+                    severity = "info"
+
+            if problem_type:
+                problems.append(
+                    ProblemItemResponse(
+                        problem_type=problem_type,
+                        severity=severity,
+                        timestamp=entry.timestamp.isoformat(),
+                        user=entry.user,
+                        process=entry.process_name,
+                        computer=entry.computer_name,
+                        description=entry.description[:300] if entry.description else None,
+                        duration_ms=round(entry.duration / 1000, 2) if entry.duration else None,
+                        source_file=entry.source_file,
+                    )
+                )
+
+                if len(problems) >= max_problems:
+                    break
+
+    def make_insight(ins) -> InsightResponse:
+        return InsightResponse(
+            severity=ins.severity,
+            category=ins.category,
+            title=ins.title,
+            description=ins.description,
+            metric_value=ins.metric_value,
+            recommendation=ins.recommendation,
+        )
+
+    def make_user_impact(ui) -> UserImpactResponse:
+        return UserImpactResponse(
+            entity=ui.entity,
+            entity_type=ui.entity_type,
+            errors=ui.errors,
+            deadlocks=ui.deadlocks,
+            timeouts=ui.timeouts,
+            slow_sql=ui.slow_sql,
+            total_events=ui.total_events,
+        )
+
+    return AnalyticsResponse(
+        timestamp=result.timestamp,
+        period_minutes=result.period_minutes,
+        health_score=result.health_score,
+        health_status=result.health_status,
+        insights=[make_insight(i) for i in result.insights],
+        problems=problems,
+        top_impacted_users=[make_user_impact(u) for u in result.top_impacted_users],
+        top_impacted_processes=[make_user_impact(p) for p in result.top_impacted_processes],
+        recommendations=result.recommendations,
+    )
 
 
 @app.exception_handler(Exception)
