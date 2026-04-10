@@ -1,122 +1,226 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+  Конфигурация журнала регистрации технологического журнала 1С:Предприятия 8.3
+  Файл: logcfg.xml
+  Документация: https://its.1c.ru/db/v8319doc#browse:17:-1:1701
+  
+  Префиксы свойств:
+  - (без префикса) : глобальные свойства события
+  - p:             : свойства процесса уровня ОС (родительский процесс)
+  - t:             : свойства потока/сессии 1С (текущий контекст выполнения)
+  - T:             : свойства клиентского соединения (тонкий/толстый клиент, веб-клиент)
+  - query:         : свойства, специфичные для логов запросов к СУБД
+  - er_excp:       : свойства для логов исключений и ошибок
+-->
 <config xmlns="http://v8.1c.ru/v8/tech-log">
 
-    <!-- ================================================= -->
-    <!-- CORE — ошибки и администрирование -->
-    <!-- ================================================= -->
-    <log location="{{LOG_BASE}}\core" history="24">
-
-        <!-- ошибки -->
-        <event><eq property="Name" value="EXCP"/></event>
-
-        <!-- предупреждения -->
-        <event><eq property="Name" value="ATTN"/></event>
-
-        <!-- кластер -->
-        <event><eq property="Name" value="CLSTR"/></event>
-        <event><eq property="Name" value="ADMIN"/></event>
-
-        <property name="p:processName"/>
-        <property name="t:computerName"/>
-        <property name="t:Usr"/>
-        <property name="descr"/>
-        <property name="context"/>
-
+    <!-- ========================================================= -->
+    <!--                 ОСНОВНОЙ ЛОГ СЕРВЕРА                      -->
+    <!-- ========================================================= -->
+    <!-- 
+      Журнал ключевых событий сервера 1С: запуск/остановка процессов, 
+      административные действия, события кластера, предупреждения.
+      
+      Параметры:
+      - location : путь к папке для файлов лога (убедитесь в правах на запись)
+      - history  : глубина ротации: количество дней хранения архивных файлов
+    -->
+    <log location="E:\1c_log\srv" history="12">
+        <!-- Фильтрация по типу события (атрибут Name) -->
+        <event><eq property="Name" value="ATTN"/></event>   <!-- Предупреждения и важные системные сообщения -->
+        <event><eq property="Name" value="PROC"/></event>   <!-- Старт/остановка рабочих процессов (rphost, rmngr) -->
+        <event><eq property="Name" value="ADMIN"/></event>  <!-- Действия администратора через консоль кластера -->
+        <event><eq property="Name" value="CLSTR"/></event>  <!-- События управления кластером: регистрация, балансировка -->
+        
+        <!-- Свойства, записываемые в каждую строку лога -->
+        <property name="t:processName"/>    <!-- Имя процесса 1С: rphost (рабочий), rmngr (менеджер) -->
+        <property name="computerName"/>     <!-- Сетевое имя сервера/компьютера -->
+        <property name="Usr"/>              <!-- Имя пользователя 1С (из списка пользователей ИБ) -->
+        <property name="T:clientID"/>       <!-- Уникальный ID клиентского приложения -->
+        <property name="T:applicationName"/><!-- Тип клиента: 1C:Enterprise, ThinClient, WebClient и т.п. -->
+        <property name="T:connectID"/>      <!-- Внутренний ID соединения с сервером -->
+        <property name="SessionID"/>        <!-- ID сессии 1С внутри рабочего процесса -->
+        <property name="context"/>          <!-- Контекст: модуль, процедура, строка кода (если доступен) -->
+        <property name="descr"/>            <!-- Человекочитаемое описание события -->
     </log>
 
-    <!-- ================================================= -->
-    <!-- PERFORMANCE — долгие вызовы (>200 мс) -->
-    <!-- ================================================= -->
-    <log location="{{LOG_BASE}}\perf" history="12">
 
+    <!-- ========================================================= -->
+    <!--              ДЛИТЕЛЬНЫЕ ВЫЗОВЫ (> 1 СЕКУНДЫ)              -->
+    <!-- ========================================================= -->
+    <!-- 
+      Фиксирует вызовы методов с длительностью ≥ 1 секунды.
+      Помогает выявлять "узкие места" в коде конфигурации или платформенных операциях.
+      
+      Единица измерения duration: микросекунды (1 сек = 1 000 000 мкс)
+    -->
+    <log location="E:\1c_log\LONG_CALLS" history="12">
         <event>
-            <eq property="Name" value="CALL"/>
-            <ge property="Duration" value="200000"/> <!-- 200 ms -->
+            <eq property="Name" value="CALL"/>              <!-- Событие: завершение вызова метода -->
+            <ge property="duration" value="1000000"/>       <!-- Фильтр: длительность >= 1 000 000 мкс (1 сек) -->
         </event>
-
-        <property name="t:Usr"/>
-        <property name="module"/>
-        <property name="method"/>
-        <property name="duration"/>
-        <property name="context"/>
-
+        
+        <!-- Свойства для анализа производительности -->
+        <property name="p:processName"/>    <!-- Родительский процесс ОС -->
+        <property name="t:processName"/>    <!-- Процесс 1С, выполнивший вызов -->
+        <property name="Usr"/>              <!-- Пользователь, инициировавший операцию -->
+        <property name="computerName"/>     <!-- Хост выполнения -->
+        <property name="T:connectID"/>      <!-- ID соединения -->
+        <property name="SessionID"/>        <!-- ID сессии -->
+        <property name="module"/>           <!-- Имя модуля, где расположен вызов -->
+        <property name="method"/>           <!-- Имя вызванного метода/процедуры -->
+        <property name="context"/>          <!-- Детали контекста: стек, параметры -->
     </log>
 
-    <!-- ================================================= -->
-    <!-- LOCKS — реальные проблемы -->
-    <!-- ================================================= -->
-    <log location="{{LOG_BASE}}\locks" history="24">
 
-        <!-- долгие блокировки (>500 мс) -->
-        <event>
-            <eq property="Name" value="TLOCK"/>
-            <ge property="Durationus" value="500000"/>
-        </event>
+    <!-- ========================================================= -->
+    <!--                 МОНИТОРИНГ ПАМЯТИ (MEM/LEAKS)            -->
+    <!-- ========================================================= -->
+    <!-- 
+      Специализированный журнал для диагностики потребления памяти:
+      - MEM   : периодические снимки использования памяти процессом
+      - LEAKS : сигналы о потенциальных утечках (неосвобождённые объекты)
+      
+      Рекомендуется для отладки при росте потребления памяти rphost.
+      history=24 — хранение до 24 файлов ротации.
+    -->
+	<log location="E:\1c_log\MEMORY" history="2">
+		<!-- Фильтр 1: записывать события, связанные с выделением/освобождением памяти -->
+		<event><eq property="Name" value="MEM"/></event>
+		<!-- Фильтр 2: записывать события об утечках памяти (memory leaks) -->
+		<event><eq property="Name" value="LEAKS"/></event>
+		<!-- Фильтр 3: записывать события об ошибках и исключениях сервера -->
+		<event><eq property="Name" value="EXCP"/></event>
 
-        <!-- deadlock -->
-        <event><eq property="Name" value="TDEADLOCK"/></event>
+		<!-- Свойства, которые будут сохраняться в каждой записи лога -->
+		<property name="p:processName"/> <!-- Имя процесса-источника (например, rphost, rmngr) -->
+		<property name="t:processName"/> <!-- Имя целевого или связанного процесса -->
+		<property name="Memory"/>        <!-- Текущий объем используемой памяти процессом -->
+		<property name="MemoryPeak"/>    <!-- Пиковый объем памяти, использованный за сессию -->
+		<property name="Context"/>       <!-- Контекст выполнения: стек вызовов, модуль, процедура -->
+		<property name="Descr"/>         <!-- Текстовое описание события или ошибки -->
+		<property name="Usr"/>           <!-- Имя пользователя 1С, инициировавшего операцию -->
+	</log>
 
-        <!-- timeout -->
-        <event><eq property="Name" value="TTIMEOUT"/></event>
 
-        <property name="t:Usr"/>
-        <property name="t:connectID"/>
-        <property name="regions"/>
-        <property name="locks"/>
-        <property name="context"/>
-
+    <!-- ========================================================= -->
+    <!--                ПРОБЛЕМНЫЕ БЛОКИРОВКИ                      -->
+    <!-- ========================================================= -->
+    <!-- 
+      Регистрация проблем с блокировками данных:
+      - TTIMEOUT : превышение времени ожидания блокировки (риск "зависаний")
+      - TDEADLOCK: взаимная блокировка (deadlock) — требует немедленного анализа
+      
+      Критично для многопользовательских ИБ с интенсивной записью.
+    -->
+    <log location="E:\1c_log\LOCKS" history="12">
+        <event><eq property="Name" value="TTIMEOUT"/></event>  <!-- Таймаут ожидания блокировки -->
+        <event><eq property="Name" value="TDEADLOCK"/></event> <!-- Обнаружен deadlock -->
+        
+        <!-- Детали для анализа блокировок -->
+        <property name="p:processName"/>    <!-- Процесс, ожидающий ресурс -->
+        <property name="t:processName"/>    <!-- Процесс, удерживающий ресурс -->
+        <property name="T:connectID"/>      <!-- ID соединения, инициировавшего блокировку -->
+        <property name="Usr"/>              <!-- Пользователь -->
+        <property name="regions"/>          <!-- Область данных: таблица, ключ, диапазон -->
+        <property name="locks"/>            <!-- Тип и режим блокировки: управляемая, монопольная и т.п. -->
+        <property name="context"/>          <!-- Код/запрос, приведший к блокировке -->
     </log>
 
-    <!-- ================================================= -->
-    <!-- SQL — медленные запросы (>80 мс) -->
-    <!-- ================================================= -->
+
+    <!-- ========================================================= -->
+    <!--              МЕДЛЕННЫЕ ЗАПРОСЫ К СУБД (> 0.5 СЕК)         -->
+    <!-- ========================================================= -->
+    <!-- 
+      Отдельный журнал (пространство имён query:) для анализа запросов:
+      - SDBL    : запросы на языке 1С, преобразованные в SQL
+      - DBMSSQL : нативные запросы к СУБД (для MS SQL; для PostgreSQL — DBPGSQL и т.п.)
+      
+      Порог: 500 000 мкс = 0.5 секунды.
+      Важно: требует включения "Регистрация запросов к СУБД" в настройках ИБ.
+    -->
     <query:log xmlns:query="http://v8.1c.ru/v8/tech-log"
-               location="{{LOG_BASE}}\sql"
-               history="6">
-
+               location="E:\1c_log\Query1c"
+               history="12">
+        
+        <!-- Фильтр: медленные запросы 1С (SDBL) -->
         <query:event>
             <query:eq property="Name" value="SDBL"/>
-            <query:ge property="Duration" value="80000"/>
+            <query:ge property="duration" value="500000"/>
         </query:event>
-
+        
+        <!-- Фильтр: медленные нативные SQL-запросы к СУБД -->
         <query:event>
             <query:eq property="Name" value="DBMSSQL"/>
-            <query:ge property="Duration" value="80000"/>
+            <query:ge property="duration" value="500000"/>
         </query:event>
-
-        <query:property name="t:Usr"/>
-        <query:property name="Sql"/>
-        <query:property name="Context"/>
-        <query:property name="Duration"/>
-
+        
+        <!-- Свойства для тюнинга запросов -->
+        <query:property name="p:processName"/>
+        <query:property name="t:processName"/>
+        <query:property name="computerName"/>
+        <query:property name="T:connectID"/>
+        <query:property name="Usr"/>
+        <query:property name="Context"/>        <!-- Контекст выполнения: модуль, обработка -->
+        <query:property name="Sql"/>            <!-- Текст SQL-запроса, отправленного в СУБД -->
+        <query:property name="duration"/>       <!-- Время выполнения (мкс) -->
+        <query:property name="rows"/>           <!-- Число строк, возвращённых запросом -->
+        <query:property name="rowsaffected"/>   <!-- Число строк, затронутых при UPDATE/DELETE -->
     </query:log>
+    
+    <!-- 
+      Генерация планов выполнения для медленных запросов.
+      Файлы планов (.xml) сохраняются в ту же папку, что и основной лог запросов.
+      Анализ планов позволяет оценить эффективность индексов и соединений в СУБД.
+    -->
+    <query:plansql xmlns:query="http://v8.1c.ru/v8/tech-log"
+                   location="E:\1c_log\Query1c"/>
 
-    <!-- ================================================= -->
-    <!-- ZABBIX — облегчённый realtime (только критичные) -->
-    <!-- ================================================= -->
-    <log location="{{LOG_BASE}}\zabbix" history="1">
 
-        <event><eq property="Name" value="EXCP"/></event>
-        <event><eq property="Name" value="TDEADLOCK"/></event>
-        <event><eq property="Name" value="TTIMEOUT"/></event>
+    <!-- ========================================================= -->
+    <!--                  ПОЛНЫЕ ИСКЛЮЧЕНИЯ (ОШИБКИ)               -->
+    <!-- ========================================================= -->
+    <!-- 
+      Журнал исключений (пространство er_excp:):
+      - EXCP    : факт возникновения исключения
+      - EXCPCNTX: детальный контекст (стек вызовов) на момент ошибки
+      
+      Рекомендуется для пост-анализа сбоев, невидимых пользователю.
+    -->
+    <er_excp:log xmlns:er_excp="http://v8.1c.ru/v8/tech-log"
+                 location="E:\1c_log\ERROR_EXCP"
+                 history="12">
+        
+        <er_excp:event>
+            <er_excp:eq property="Name" value="EXCP"/>      <!-- Само исключение -->
+        </er_excp:event>
+        <er_excp:event>
+            <er_excp:eq property="Name" value="EXCPCNTX"/>  <!-- Контекст исключения -->
+        </er_excp:event>
+        
+        <!-- Детали диагностики ошибок -->
+        <er_excp:property name="context"/>          <!-- Стек вызовов: модуль, процедура, строка -->
+        <er_excp:property name="descr"/>            <!-- Текст ошибки (сообщение исключения) -->
+        <er_excp:property name="p:processName"/>
+        <er_excp:property name="t:processName"/>
+        <er_excp:property name="Usr"/>              <!-- Пользователь, чьё действие вызвало ошибку -->
+        <er_excp:property name="computerName"/>
+        <er_excp:property name="SessionID"/>
+        <er_excp:property name="T:connectID"/>
+    </er_excp:log>
 
-        <property name="t:Usr"/>
-        <property name="Name"/>
-        <property name="descr"/>
 
-    </log>
-
-    <!-- ================================================= -->
-    <!-- АНАЛИТИКА — полные логи для ручного анализа -->
-    <!-- ================================================= -->
-    <log location="{{LOG_ANALYTICS}}\errors_full" history="24">
-        <event><eq property="Name" value="EXCP"/></event>
-        <property name="t:datetime"/>
-        <property name="descr"/>
-        <property name="callstack"/>
-    </log>
-
-    <!-- отключаем dump -->
+    <!-- ========================================================= -->
+    <!--                 ДАМПЫ ПРИ КРАШАХ ПРОЦЕССОВ                -->
+    <!-- ========================================================= -->
+    <!-- 
+      Настройка создания дампов памяти (crash dump) при аварийном 
+      завершении процессов 1С (rphost, rmngr, клиентские приложения).
+      
+      create="false" — авто-создание отключено (экономит место).
+      Для включения отладки установите create="true".
+      Дампы сохраняются в подпапку dump/ относительно location основного лога.
+    -->
     <dump create="false"/>
 
 </config>

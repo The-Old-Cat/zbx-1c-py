@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """FastAPI приложение для мониторинга техжурнала 1С"""
 
 from datetime import datetime, timedelta
