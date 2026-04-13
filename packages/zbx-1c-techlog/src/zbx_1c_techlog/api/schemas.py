@@ -40,6 +40,16 @@ class MemoryByProcessInfo(BaseModel):
     value: int
 
 
+class SqlTableInfo(BaseModel):
+    """Информация о SQL-таблице 1С"""
+
+    table: str = Field(..., description="Имя таблицы (T123, S456...)")
+    hint: str = Field(..., description="Тип объекта метаданных (Документ, Справочник...)")
+    count: int = Field(..., description="Количество обращений")
+    avg_duration_ms: float = Field(..., description="Средняя длительность запроса")
+    max_duration_ms: float = Field(..., description="Максимальная длительность запроса")
+
+
 class EventStatsResponse(BaseModel):
     """Статистика событий"""
 
@@ -61,6 +71,10 @@ class EventStatsResponse(BaseModel):
     )
     sql_queries: List[str] = Field(
         default_factory=list, description="Тексты SQL-запросов (для slow_sql, первые 200 симв.)"
+    )
+    sql_tables: List[SqlTableInfo] = Field(
+        default_factory=list,
+        description="Топ SQL-таблиц с расшифровкой типа объекта метаданных",
     )
 
 

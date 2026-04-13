@@ -1,7 +1,7 @@
 """Чтение и парсинг техжурнала 1С"""
 
 from .parser import TechJournalParser, LogEntry
-from .collector import MetricsCollector, MetricsResult, EventStats
+from .collector import MetricsCollector, MetricsResult, EventStats, MemoryTracker, MemorySnapshot
 from .analytics import TechJournalAnalyzer
 
 __all__ = [
@@ -10,5 +10,7 @@ __all__ = [
     "MetricsCollector",
     "MetricsResult",
     "EventStats",
+    "MemoryTracker",
+    "MemorySnapshot",
     "TechJournalAnalyzer",
 ]

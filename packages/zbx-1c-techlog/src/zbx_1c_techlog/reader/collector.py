@@ -10,6 +10,24 @@ from .discovery import LogStructureDiscovery, LogStructure
 from .parser import LogEntry, TechJournalParser, ParserStats
 
 
+# Маппинг типов таблиц 1С для расшифровки SQL
+SQL_TABLE_HINTS: dict[str, str] = {
+    "T": "Документ",
+    "S": "Справочник",
+    "X": "РегистрСведений",
+    "V": "РегистрНакопления",
+    "P": "РегистрБухгалтерии",
+    "A": "РегистрРасчета",
+    "E": "ПланВидовХарактеристик",
+    "F": "ПланСчетов",
+    "J": "ПланВидовРасчета",
+    "C": "БизнесПроцесс",
+    "L": "Задача",
+    "R": "Обработка",
+    "O": "Отчет",
+}
+
+
 @dataclass
 class EventStats:
     """Статистика по событию"""
@@ -38,9 +56,32 @@ class EventStats:
 
     # SQL-запросы (для slow_sql)
     sql_queries: list[str] = field(default_factory=list)  # первые 200 символов SQL-запросов
+    sql_tables: list[dict] = field(
+        default_factory=list
+    )  # [{table: "T123", hint: "РегистрБухгалтерии", count: 5, avg_duration_ms: 2000}]
+
+    # Чёрный список процессов (игнорируются при сборе)
+    _process_blacklist: set[str] = field(
+        default_factory=lambda: {"RemoteDebugger", "DebugQueryTargets"}
+    )
+
+    def __post_init__(self) -> None:
+        """Инициализация после создания"""
+        # Нормализуем чёрный список
+        self._process_blacklist = set(self._process_blacklist)
+
+    def is_process_blacklisted(self, process_name: Optional[str]) -> bool:
+        """Проверить, находится ли процесс в чёрном списке"""
+        if not process_name:
+            return False
+        return process_name in self._process_blacklist
 
     def add(self, entry: LogEntry) -> None:
         """Добавить запись в статистику"""
+        # Пропускаем чёрные процессы
+        if self.is_process_blacklisted(entry.process_name):
+            return
+
         self.count += 1
         if entry.user:
             self.users.add(entry.user)
@@ -87,6 +128,10 @@ class EventStats:
             if sql_snippet not in self.sql_queries:
                 self.sql_queries.append(sql_snippet)
 
+            # Парсим имена таблиц из SQL
+            if entry.duration:
+                self._extract_sql_tables(entry.sql, entry.duration)
+
     @staticmethod
     def _extract_method_from_context(context: Optional[str]) -> Optional[str]:
         """Извлечь имя метода из поля Context (последнее звено стека)
@@ -131,6 +176,58 @@ class EventStats:
         # Возвращаем полный путь метода (не обрезаем до последнего элемента)
         # Это даёт больше контекста: "ОбщийМодуль.ПроведениеДокументов.Провести"
         return clean_method
+
+    def _extract_sql_tables(self, sql: str, duration_us: int) -> None:
+        """
+        Извлечь имена таблиц из SQL-запроса и добавить в статистику.
+
+        1С использует псевдонимы вида T123, S456, V789 для таблиц метаданных.
+        """
+        import re
+
+        # Ищем таблицы: FROM T123, JOIN S456, UPDATE V789, INTO P001
+        pattern = r"(?:FROM|JOIN|UPDATE|INTO|DELETE\s+FROM)\s+((?:[TSXVPAEFJCRLON])\d+)"
+        matches = re.findall(pattern, sql, re.IGNORECASE)
+
+        if not matches:
+            return
+
+        for table_name in matches:
+            prefix = table_name[0].upper()
+            hint = SQL_TABLE_HINTS.get(prefix, "Неизвестный объект")
+
+            # Ищем существующую запись или создаём новую
+            existing = None
+            for tbl in self.sql_tables:
+                if tbl["table"] == table_name:
+                    existing = tbl
+                    break
+
+            duration_ms = duration_us / 1000
+
+            if existing:
+                existing["count"] += 1
+                # Скользящее среднее
+                existing["avg_duration_ms"] = round(
+                    (existing["avg_duration_ms"] * (existing["count"] - 1) + duration_ms)
+                    / existing["count"],
+                    2,
+                )
+            else:
+                if len(self.sql_tables) < 20:  # Лимит топ-20 таблиц
+                    self.sql_tables.append(
+                        {
+                            "table": table_name,
+                            "hint": hint,
+                            "count": 1,
+                            "avg_duration_ms": round(duration_ms, 2),
+                            "max_duration_ms": round(duration_ms, 2),
+                        }
+                    )
+
+            # Обновляем максимум
+            if existing and duration_ms > existing.get("max_duration_ms", 0):
+                existing["max_duration_ms"] = round(duration_ms, 2)
 
     @property
     def avg_duration(self) -> float:
@@ -180,6 +277,103 @@ class EventStats:
             method_stats.values(), key=lambda x: x["total_duration_ms"], reverse=True
         )
         return sorted_methods[:5]
+
+
+@dataclass
+class MemorySnapshot:
+    """Снимок потребления памяти за один цикл сбора"""
+
+    timestamp: datetime
+    by_process: dict[str, int]  # {process_name: memory_bytes}
+
+
+class MemoryTracker:
+    """
+    Отслеживание потребления памяти между циклами сбора.
+
+    Обнаружение утечек: если память растёт N циклов подряд без падения —
+    помечается как «потенциальная утечка».
+    """
+
+    def __init__(self, leak_threshold: int = 3):
+        self._history: list[MemorySnapshot] = []
+        self._leak_threshold = leak_threshold  # циклов подряд роста
+
+    def record(self, snapshot: dict[str, int], timestamp: datetime) -> None:
+        """Записать снимок памяти"""
+        self._history.append(MemorySnapshot(timestamp=timestamp, by_process=snapshot))
+        # Храним последние 10 снимков
+        if len(self._history) > 10:
+            self._history = self._history[-10:]
+
+    def get_delta(self, process_name: str) -> Optional[int]:
+        """
+        Получить дельту памяти для процесса (текущий - предыдущий).
+
+        Returns:
+            Разница в байтах или None если недостаточно данных.
+        """
+        if len(self._history) < 2:
+            return None
+
+        current = self._history[-1].by_process.get(process_name, 0)
+        previous = self._history[-2].by_process.get(process_name, 0)
+        return current - previous
+
+    def detect_leaks(self) -> list[dict]:
+        """
+        Обнаружить потенциальные утечки памяти.
+
+        Returns:
+            Список процессов с растущей памятью N циклов подряд.
+        """
+        if len(self._history) < self._leak_threshold + 1:
+            return []
+
+        leaks = []
+        # Собираем все уникальные процессы
+        all_processes: set[str] = set()
+        for snap in self._history:
+            all_processes.update(snap.by_process.keys())
+
+        for proc in all_processes:
+            consecutive_growth = 0
+            for i in range(len(self._history) - 1, 0, -1):
+                current = self._history[i].by_process.get(proc, 0)
+                previous = self._history[i - 1].by_process.get(proc, 0)
+                if current > previous:
+                    consecutive_growth += 1
+                else:
+                    break
+
+            if consecutive_growth >= self._leak_threshold:
+                first_val = self._history[-consecutive_growth - 1].by_process.get(proc, 0)
+                last_val = self._history[-1].by_process.get(proc, 0)
+                leaks.append(
+                    {
+                        "process": proc,
+                        "consecutive_cycles": consecutive_growth,
+                        "memory_delta_bytes": last_val - first_val,
+                        "current_memory": last_val,
+                    }
+                )
+
+        return leaks
+
+    def get_all_deltas(self) -> dict[str, Optional[int]]:
+        """Получить дельты памяти для всех процессов"""
+        if len(self._history) < 2:
+            return {}
+
+        deltas = {}
+        current = self._history[-1].by_process
+        previous = self._history[-2].by_process
+
+        all_procs = set(current.keys()) | set(previous.keys())
+        for proc in all_procs:
+            deltas[proc] = current.get(proc, 0) - previous.get(proc, 0)
+
+        return deltas
 
 
 @dataclass
@@ -246,6 +440,10 @@ class MetricsResult:
         # Добавляем SQL-запросы для slow_sql
         if self.slow_sql.sql_queries:
             result["slow_sql.queries"] = self.slow_sql.sql_queries
+
+        # Добавляем SQL-таблицы с расшифровкой
+        if self.slow_sql.sql_tables:
+            result["slow_sql.tables"] = self.slow_sql.sql_tables
 
         return result
 
@@ -434,15 +632,17 @@ class MetricsCollector:
 
     CRITICAL_EVENTS = {"EXCP", "EXCEPTION", "TDEADLOCK", "DEADLOCK", "TTIMEOUT", "TIMEOUT"}
 
-    def __init__(self, log_base_path: str | Path):
+    def __init__(self, log_base_path: str | Path, leak_threshold: int = 3):
         """
         Инициализация сборщика.
 
         Args:
             log_base_path: Базовый путь к логам техжурнала
+            leak_threshold: Количество циклов роста памяти для обнаружения утечки
         """
         self.log_base_path = Path(log_base_path)
         self.log_structure: Optional[LogStructure] = None
+        self._memory_tracker = MemoryTracker(leak_threshold=leak_threshold)
         self._discover_structure()
 
     def _discover_structure(self) -> None:
@@ -568,6 +768,13 @@ class MetricsCollector:
         result.slow_sql = stats.get("slow_sql", EventStats())
         result.cluster_events = stats.get("cluster_events", EventStats())
         result.admin_events = stats.get("admin_events", EventStats())
+
+        # Записываем снимок памяти для отслеживания утечек
+        # Берём память из long_calls (там есть Memory из ТЖ)
+        if result.long_calls.memory_by_process:
+            self._memory_tracker.record(dict(result.long_calls.memory_by_process), result.timestamp)
+
+        # Если есть parser_stats, добавляем
         result.parser_stats = parser_stats
 
         return result
@@ -758,3 +965,103 @@ class MetricsCollector:
 
         # Формируем ответ в формате Zabbix LLD
         return [{"{#PROC_NAME}": proc} for proc in sorted(all_processes)]
+
+    def get_memory_leaks(self) -> list[dict]:
+        """
+        Получить информацию о потенциальных утечках памяти.
+
+        Returns:
+            Список процессов с растущей памятью N циклов подряд.
+        """
+        return self._memory_tracker.detect_leaks()
+
+    def get_memory_deltas(self) -> dict[str, Optional[int]]:
+        """
+        Получить дельты памяти для всех процессов (текущий - предыдущий).
+
+        Returns:
+            {process_name: delta_bytes}
+        """
+        return self._memory_tracker.get_all_deltas()
+
+    def generate_telegram_report(self, period_minutes: int = 5) -> str:
+        """
+        Сгенерировать краткий текстовый отчёт для пересылки в Telegram.
+
+        Human Friendly формат с эмодзи, ключевыми цифрами и проблемами.
+        """
+        metrics = self.collect(period_minutes=period_minutes)
+        leaks = self.get_memory_leaks()
+        deltas = self.get_memory_deltas()
+
+        lines = [
+            "📊 *Мониторинг 1С — техжурнал*",
+            f"Период: {period_minutes} мин",
+            f"Время: {metrics.timestamp.strftime('%H:%M:%S')}",
+            "",
+            f"📈 Всего событий: *{metrics.total_events}*",
+            f"🔴 Критичных: *{metrics.critical_events}*",
+            "",
+            "--- События ---",
+            f"❌ Ошибки: {metrics.errors.count}",
+            f"🔒 Deadlock: {metrics.deadlocks.count}",
+            f"⏱️ Timeout: {metrics.timeouts.count}",
+            f"🔐 Блокировки: {metrics.long_locks.count}",
+            f"⏳ Долгие вызовы: {metrics.long_calls.count}",
+            f"🐌 Медленный SQL: {metrics.slow_sql.count}",
+            "",
+        ]
+
+        # Сетевые ошибки
+        if metrics.errors.network_errors > 0:
+            lines.append(f"🌐 Сетевые ошибки: {metrics.errors.network_errors}")
+            lines.append("")
+
+        # Топ медленных методов
+        if metrics.long_calls.top_slow_methods:
+            lines.append("--- 🔝 Топ медленных методов ---")
+            for m in metrics.long_calls.top_slow_methods[:3]:
+                lines.append(f"  • {m['method']}: {m['total_duration_ms']:.0f}мс ({m['count']}x)")
+            lines.append("")
+
+        # SQL-таблицы
+        if metrics.slow_sql.sql_tables:
+            lines.append("--- 🗄️ Топ SQL-таблиц ---")
+            for tbl in sorted(
+                metrics.slow_sql.sql_tables, key=lambda x: x["avg_duration_ms"], reverse=True
+            )[:3]:
+                lines.append(f"  • {tbl['table']} ({tbl['hint']}): {tbl['avg_duration_ms']:.0f}мс")
+            lines.append("")
+
+        # Утечки памяти
+        if leaks:
+            lines.append("⚠️ *Потенциальные утечки памяти:*")
+            for leak in leaks:
+                delta_mb = leak["memory_delta_bytes"] / 1024 / 1024
+                lines.append(
+                    f"  • {leak['process']}: +{delta_mb:.1f}МБ ({leak['consecutive_cycles']} цикла)"
+                )
+            lines.append("")
+
+        # Дельты памяти
+        if deltas:
+            lines.append("--- 📦 Дельта памяти ---")
+            for proc, delta in sorted(deltas.items(), key=lambda x: abs(x[1] or 0), reverse=True)[
+                :5
+            ]:
+                if delta and abs(delta) > 1024:  # Только если > 1КБ
+                    sign = "+" if delta > 0 else ""
+                    lines.append(f"  • {proc}: {sign}{delta / 1024:.0f}КБ")
+            lines.append("")
+
+        # Процессы с ошибками
+        if metrics.errors.processes:
+            lines.append("--- ❌ Процессы с ошибками ---")
+            for proc in sorted(metrics.errors.processes):
+                lines.append(f"  • {proc}")
+            lines.append("")
+
+        if metrics.critical_events == 0 and metrics.errors.count == 0:
+            lines.append("✅ Система работает в штатном режиме")
+
+        return "\n".join(lines)

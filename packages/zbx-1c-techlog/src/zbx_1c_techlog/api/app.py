@@ -106,6 +106,7 @@ async def get_metrics(
             network_errors=stats.network_errors,
             top_slow_methods=stats.top_slow_methods,
             sql_queries=stats.sql_queries,
+            sql_tables=stats.sql_tables,
         )
 
     return MetricsResponse(
@@ -249,6 +250,48 @@ async def get_summary(
     return {
         "summary": summary,
         "period_minutes": period_minutes,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.get("/api/report/telegram")
+async def get_telegram_report(
+    period_minutes: int = Query(default=5, ge=1, le=1440, description="Период сбора в минутах")
+):
+    """
+    Получить краткий отчёт в формате для Telegram (Markdown)
+
+    Human Friendly формат с эмодзи, ключевыми цифрами, топ проблем,
+    утечками памяти и дельтами потребления.
+
+    Идеально для пересылки админам в мессенджеры.
+    """
+    collector = get_collector()
+    report = collector.generate_telegram_report(period_minutes=period_minutes)
+
+    return {
+        "report": report,
+        "format": "markdown",
+        "period_minutes": period_minutes,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.get("/api/memory/leaks")
+async def get_memory_leaks():
+    """
+    Получить информацию о потенциальных утечках памяти.
+
+    Утечка обнаруживается если память растёт N циклов сбора подряд
+    без единого падения (по умолчанию 3 цикла).
+    """
+    collector = get_collector()
+    leaks = collector.get_memory_leaks()
+    deltas = collector.get_memory_deltas()
+
+    return {
+        "leaks": leaks,
+        "deltas": deltas,
         "timestamp": datetime.now().isoformat(),
     }
 
