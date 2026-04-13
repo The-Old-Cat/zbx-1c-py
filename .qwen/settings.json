@@ -6,7 +6,13 @@
       "Bash(type *)",
       "Bash(netstat *)",
       "Bash(findstr *)",
-      "Bash(taskkill *)"
+      "Bash(taskkill *)",
+      "Bash(pyright *)",
+      "Bash(.venv\\scripts\\python *)",
+      "Bash(..\\..\\.venv\\scripts\\python *)",
+      "Bash(del *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   },
   "$version": 3
