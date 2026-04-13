@@ -56,12 +56,60 @@ class TestMetricsEndpoint:
         assert "errors" in data
         assert "deadlocks" in data
 
+        # Проверяем новые поля
+        errors = data["errors"]
+        assert "memory_usage_bytes" in errors
+        assert "network_errors" in errors
+        assert "top_slow_methods" in errors
+        assert isinstance(errors["memory_usage_bytes"], int)
+        assert isinstance(errors["network_errors"], int)
+        assert isinstance(errors["top_slow_methods"], list)
+
     def test_get_metrics_invalid_period(self, client):
         """Проверка невалидного периода"""
         response = client.get("/api/metrics?period_minutes=0")
         assert response.status_code == 422
 
         response = client.get("/api/metrics?period_minutes=2000")
+        assert response.status_code == 422
+
+
+class TestMetricsZabbixEndpoint:
+    """Тесты эндпоинта /api/metrics/zabbix для Zabbix LLD"""
+
+    def test_get_metrics_zabbix(self, client):
+        """Получение метрик в формате Zabbix LLD"""
+        response = client.get("/api/metrics/zabbix?period_minutes=5")
+        assert response.status_code == 200
+        data = response.json()
+        assert "timestamp" in data
+        assert "period_minutes" in data
+        assert "hostname" in data
+        assert "metrics" in data
+        assert "count" in data
+        assert isinstance(data["metrics"], list)
+        assert data["count"] == len(data["metrics"])
+
+        # Проверяем структуру отдельных метрик
+        if data["metrics"]:
+            metric = data["metrics"][0]
+            assert "host" in metric
+            assert "key" in metric
+            assert "value" in metric
+
+    def test_get_metrics_zabbix_with_hostname(self, client):
+        """Получение метрик с указанием hostname"""
+        response = client.get("/api/metrics/zabbix?period_minutes=5&hostname=test-server-01")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["hostname"] == "test-server-01"
+
+    def test_get_metrics_zabbix_invalid_period(self, client):
+        """Проверка невалидного периода для Zabbix LLD"""
+        response = client.get("/api/metrics/zabbix?period_minutes=0")
+        assert response.status_code == 422
+
+        response = client.get("/api/metrics/zabbix?period_minutes=2000")
         assert response.status_code == 422
 
 

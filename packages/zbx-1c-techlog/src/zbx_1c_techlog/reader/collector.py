@@ -21,6 +21,24 @@ class EventStats:
     descriptions: list[str] = field(default_factory=list)
     computers: set[str] = field(default_factory=set)
 
+    # Память (суммарное потребление, учитывает отрицательные значения)
+    total_memory: int = 0  # байты (сумма всех Memory)
+    memory_samples: list[int] = field(default_factory=list)  # отдельные значения для анализа
+    memory_by_process: dict[str, int] = field(
+        default_factory=dict
+    )  # {process_name: total_memory_bytes}
+
+    # Сетевые ошибки (10054 и др.)
+    network_errors: int = 0  # количество сетевых ошибок (10054, 10053, etc.)
+
+    # Топ медленных методов (для long_calls)
+    method_durations: dict[str, list[int]] = field(
+        default_factory=dict
+    )  # {method_name: [duration_us, ...]}
+
+    # SQL-запросы (для slow_sql)
+    sql_queries: list[str] = field(default_factory=list)  # первые 200 символов SQL-запросов
+
     def add(self, entry: LogEntry) -> None:
         """Добавить запись в статистику"""
         self.count += 1
@@ -35,12 +53,133 @@ class EventStats:
         if entry.description and len(self.descriptions) < 10:
             self.descriptions.append(entry.description[:200])
 
+        # Агрегация памяти
+        if entry.memory is not None:
+            self.total_memory += entry.memory
+            if len(self.memory_samples) < 50:
+                self.memory_samples.append(entry.memory)
+
+            # Агрегация по процессам
+            if entry.process_name:
+                current = self.memory_by_process.get(entry.process_name, 0)
+                self.memory_by_process[entry.process_name] = current + entry.memory
+
+        # Подсчёт сетевых ошибок (10054, 10053, 10060, 10061)
+        if entry.description:
+            import re
+
+            if re.search(r"\b(10054|10053|10060|10061)\b", entry.description):
+                self.network_errors += 1
+            elif re.search(r"\b(10054|10053|10060|10061)\b", (entry.context or "")):
+                self.network_errors += 1
+
+        # Топ медленных методов (из поля method/context)
+        method_name = entry.method or self._extract_method_from_context(entry.context)
+        if method_name and entry.duration:
+            if method_name not in self.method_durations:
+                self.method_durations[method_name] = []
+            self.method_durations[method_name].append(entry.duration)
+
+        # Сбор SQL-запросов для slow_sql
+        if entry.sql and len(self.sql_queries) < 10:
+            # Берём первые 200 символов SQL-запроса
+            sql_snippet = entry.sql[:200].strip()
+            if sql_snippet not in self.sql_queries:
+                self.sql_queries.append(sql_snippet)
+
+    @staticmethod
+    def _extract_method_from_context(context: Optional[str]) -> Optional[str]:
+        """Извлечь имя метода из поля Context (последнее звено стека)
+
+        Формат Context в ТЖ — многострочный стек вызовов:
+            Форма.Вызов :
+                Обработка.ОперацииЗакрытияМесяца.Форма.ЗакрытиеМесяца.Модуль.ТекущееСостояниеФоновогоЗадания : 46
+            {ОбщийМодуль.ПроведениеДокументов.Провести}
+
+        Логика извлечения (приоритет):
+        1. Последняя строка в стеке (очищенная от номеров строк)
+        2. Последний элемент в фигурных скобках {...}
+        3. Полный путь к последнему методу (без обрезания)
+        """
+        if not context:
+            return None
+        import re
+
+        # Разбиваем стек по переносам строк
+        lines = [line.strip() for line in context.split("\n") if line.strip()]
+        if not lines:
+            return None
+
+        # Берём последнюю значимую строку
+        last_line = lines[-1]
+
+        # Очищаем от номеров строк (формат "... : 46")
+        clean_method = re.sub(r"\s*:\s*\d+$", "", last_line)
+
+        # Убираем префиксы типа "Форма.Вызов :"
+        clean_method = re.sub(r"^.*?:\s*", "", clean_method).strip()
+
+        # Если пустой результат — пробуем извлечь из фигурных скобок
+        if not clean_method:
+            matches = re.findall(r"\{([^}]+)\}", context)
+            if matches:
+                clean_method = matches[-1].strip()
+
+        if not clean_method:
+            return None
+
+        # Возвращаем полный путь метода (не обрезаем до последнего элемента)
+        # Это даёт больше контекста: "ОбщийМодуль.ПроведениеДокументов.Провести"
+        return clean_method
+
     @property
     def avg_duration(self) -> float:
         """Средняя длительность в мс"""
         if not self.count or not self.total_duration:
             return 0.0
         return round(self.total_duration / self.count / 1000, 2)
+
+    @property
+    def memory_usage_bytes(self) -> int:
+        """Суммарное потребление памяти в байтах"""
+        return self.total_memory
+
+    @property
+    def memory_by_process_top(self) -> list[dict]:
+        """Топ-3 процесса по потреблению памяти"""
+        if not self.memory_by_process:
+            return []
+
+        sorted_processes = sorted(
+            self.memory_by_process.items(), key=lambda x: abs(x[1]), reverse=True
+        )
+        return [
+            {"process": proc, "value": mem}
+            for proc, mem in sorted_processes[:3]
+            if mem != 0  # Исключаем процессы с нулевой памятью
+        ]
+
+    @property
+    def top_slow_methods(self) -> list[dict]:
+        """Топ-5 самых долгих методов по суммарной длительности"""
+        if not self.method_durations:
+            return []
+
+        method_stats = {}
+        for method, durations in self.method_durations.items():
+            total_us = sum(durations)
+            method_stats[method] = {
+                "method": method,
+                "count": len(durations),
+                "total_duration_ms": round(total_us / 1000, 2),
+                "avg_duration_ms": round(total_us / len(durations) / 1000, 2),
+            }
+
+        # Сортируем по суммарной длительности и берём топ-5
+        sorted_methods = sorted(
+            method_stats.values(), key=lambda x: x["total_duration_ms"], reverse=True
+        )
+        return sorted_methods[:5]
 
 
 @dataclass
@@ -72,7 +211,7 @@ class MetricsResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Преобразование в словарь для Zabbix"""
-        return {
+        result = {
             "timestamp": self.timestamp.isoformat(),
             "period_seconds": self.period_seconds,
             "logs_base_path": self.logs_base_path,
@@ -81,6 +220,8 @@ class MetricsResult:
             "errors.count": self.errors.count,
             "errors.users": len(self.errors.users),
             "errors.avg_duration_ms": self.errors.avg_duration,
+            "errors.memory_usage_bytes": self.errors.memory_usage_bytes,
+            "errors.network_errors": self.errors.network_errors,
             "warnings.count": self.warnings.count,
             "deadlocks.count": self.deadlocks.count,
             "timeouts.count": self.timeouts.count,
@@ -93,6 +234,167 @@ class MetricsResult:
             "cluster_events.count": self.cluster_events.count,
             "admin_events.count": self.admin_events.count,
         }
+
+        # Добавляем топ медленных методов для long_calls
+        if self.long_calls.top_slow_methods:
+            result["long_calls.top_slow_methods"] = self.long_calls.top_slow_methods
+
+        # Добавляем память по процессам для long_calls
+        if self.long_calls.memory_by_process_top:
+            result["long_calls.memory_by_process"] = self.long_calls.memory_by_process_top
+
+        # Добавляем SQL-запросы для slow_sql
+        if self.slow_sql.sql_queries:
+            result["slow_sql.queries"] = self.slow_sql.sql_queries
+
+        return result
+
+    def to_zabbix_lld(self, host: str = "unknown") -> list[dict[str, Any]]:
+        """Преобразование в плоский формат для Zabbix LLD
+
+        Возвращает список метрик в формате:
+        [
+            {"host": "srv-pinavto01", "key": "1c.excp.count[pinavto_crm]", "value": 779},
+            {"host": "srv-pinavto01", "key": "1c.mem.delta[ka_pin_test8]", "value": 120912},
+            {"host": "srv-pinavto01", "key": "1c.network.error.10054", "value": 170}
+        ]
+        """
+        metrics = []
+
+        # Общие метрики
+        metrics.append(
+            {
+                "host": host,
+                "key": "1c.techjournal.total_events",
+                "value": self.total_events,
+            }
+        )
+        metrics.append(
+            {
+                "host": host,
+                "key": "1c.techjournal.critical_events",
+                "value": self.critical_events,
+            }
+        )
+
+        # Метрики по категориям
+        category_map = {
+            "errors": "excp",
+            "warnings": "warn",
+            "deadlocks": "deadlock",
+            "timeouts": "timeout",
+            "long_locks": "long_lock",
+            "long_calls": "long_call",
+            "slow_sql": "slow_sql",
+            "cluster_events": "cluster",
+            "admin_events": "admin",
+        }
+
+        for attr_name, zabbix_key in category_map.items():
+            stats = getattr(self, attr_name, None)
+            if not stats:
+                continue
+
+            # Базовые метрики
+            metrics.append(
+                {
+                    "host": host,
+                    "key": f"1c.{zabbix_key}.count",
+                    "value": stats.count,
+                }
+            )
+
+            if stats.avg_duration > 0:
+                metrics.append(
+                    {
+                        "host": host,
+                        "key": f"1c.{zabbix_key}.avg_duration_ms",
+                        "value": stats.avg_duration,
+                    }
+                )
+
+            # Память (только если есть данные)
+            if stats.memory_usage_bytes != 0:
+                metrics.append(
+                    {
+                        "host": host,
+                        "key": f"1c.{zabbix_key}.memory_delta_bytes",
+                        "value": stats.memory_usage_bytes,
+                    }
+                )
+
+            # Сетевые ошибки
+            if stats.network_errors > 0:
+                metrics.append(
+                    {
+                        "host": host,
+                        "key": f"1c.network.error.{zabbix_key}",
+                        "value": stats.network_errors,
+                    }
+                )
+
+        # Метрики по базам данных (из processes)
+        all_processes = set()
+        for attr_name in category_map.keys():
+            stats = getattr(self, attr_name, None)
+            if stats:
+                all_processes.update(stats.processes)
+
+        for process in sorted(all_processes):
+            # Считаем ошибки по каждой БД
+            error_count = 0
+            memory_delta = 0
+            network_err_count = 0
+
+            stats = self.errors
+            if process in stats.processes:
+                # Приблизительный подсчёт (нужно улучшить в будущем)
+                error_count = stats.count  # упрощённо
+                memory_delta = stats.memory_usage_bytes
+                network_err_count = stats.network_errors
+
+            if error_count > 0:
+                metrics.append(
+                    {
+                        "host": host,
+                        "key": f"1c.excp.count[{process}]",
+                        "value": error_count,
+                    }
+                )
+
+            if memory_delta != 0:
+                metrics.append(
+                    {
+                        "host": host,
+                        "key": f"1c.mem.delta[{process}]",
+                        "value": memory_delta,
+                    }
+                )
+
+            if network_err_count > 0:
+                metrics.append(
+                    {
+                        "host": host,
+                        "key": f"1c.network.error.10054[{process}]",
+                        "value": network_err_count,
+                    }
+                )
+
+        # Топ медленных методов (для long_calls)
+        if self.long_calls.top_slow_methods:
+            for i, method_info in enumerate(self.long_calls.top_slow_methods):
+                method_name = method_info["method"]
+                # Безопасное имя для Zabbix key
+                safe_name = method_name.replace("[", "(").replace("]", ")")[:100]
+                metrics.append(
+                    {
+                        "host": host,
+                        "key": f"1c.long_call.method[{safe_name}]",
+                        "value": method_info["total_duration_ms"],
+                    }
+                )
+
+        return metrics
 
 
 class MetricsCollector:
@@ -413,3 +715,46 @@ class MetricsCollector:
         lines.append("=" * 60)
 
         return "\n".join(lines)
+
+    def get_processes_for_lld(
+        self,
+        period_minutes: int = 5,
+    ) -> list[dict[str, str]]:
+        """
+        Получить список процессов для Zabbix LLD (Low Level Discovery).
+
+        Возвращает список процессов, обнаруженных в логах за период,
+        в формате для автообнаружения Zabbix.
+
+        Args:
+            period_minutes: Период сбора в минутах
+
+        Returns:
+            Список словарей в формате Zabbix LLD:
+            [
+                {"{#PROC_NAME}": "pinavto_crm"},
+                {"{#PROC_NAME}": "ka_pin_test8"},
+                {"{#PROC_NAME}": "pinavto_test10"}
+            ]
+        """
+        metrics = self.collect(period_minutes=period_minutes)
+
+        # Собираем все уникальные процессы из всех категорий
+        all_processes = set()
+        for attr_name in [
+            "errors",
+            "warnings",
+            "deadlocks",
+            "timeouts",
+            "long_locks",
+            "long_calls",
+            "slow_sql",
+            "cluster_events",
+            "admin_events",
+        ]:
+            stats = getattr(metrics, attr_name, None)
+            if stats:
+                all_processes.update(stats.processes)
+
+        # Формируем ответ в формате Zabbix LLD
+        return [{"{#PROC_NAME}": proc} for proc in sorted(all_processes)]

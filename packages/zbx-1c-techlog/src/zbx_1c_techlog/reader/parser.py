@@ -51,6 +51,20 @@ class LogEntry:
     format: str = "unknown"  # Формат лога
     source_file: Optional[str] = None  # Исходный файл
 
+    # Дополнительные поля из документации
+    client_id: Optional[str] = None  # T:clientID — ID клиентского соединения
+    application_name: Optional[str] = None  # T:applicationName — тип клиента
+    connect_id: Optional[str] = None  # T:connectID — ID соединения с ИБ
+    session_id: Optional[str] = None  # SessionID — GUID сеанса
+    module: Optional[str] = None  # module — имя модуля
+    method: Optional[str] = None  # method — имя метода
+    regions: Optional[str] = None  # regions — области блокировок
+    locks: Optional[str] = None  # locks — заблокированные ресурсы
+    sql: Optional[str] = None  # sql — текст SQL-запроса
+    rows: Optional[int] = None  # rows — кол-во строк результата
+    rows_affected: Optional[int] = None  # rowsaffected — кол-во изменённых строк
+    memory: Optional[int] = None  # Memory — потребление памяти в байтах (может быть отриц.)
+
     @classmethod
     def from_line(
         cls,
@@ -85,8 +99,110 @@ class LogEntry:
 
         if result:
             result.source_file = source_file
+            # Если computer_name пустой, пробуем извлечь из пути к файлу
+            if not result.computer_name and source_file:
+                result.computer_name = cls._extract_server_name_from_path(source_file)
 
         return result
+
+    @staticmethod
+    def _extract_server_name_from_path(file_path: str) -> Optional[str]:
+        """
+        Извлечь имя сервера из пути к файлу лога.
+
+        Примеры путей:
+        - /logs/srv-pinavto02/core/26032222.log -> srv-pinavto02
+        - C:\\Logs\\1C\\srv-rdm01\\core\\... -> srv-rdm01
+        - /logs/1c-techjournal/core/... -> None (нет имени сервера)
+
+        Ищем паттерн: директория с именем вида srv-XXXX или хост в пути
+        """
+        import re
+
+        # Ищем имя сервера в пути (srv-XXXX, host-XXXX, или просто хост)
+        patterns = [
+            r"[\\/](srv-[^\\/]+)[\\/]",  # srv-XXXX
+            r"[\\/](host-[^\\/]+)[\\/]",  # host-XXXX
+            r"[\\/](rdp[^\\/]+)[\\/]",  # rdpXXXX
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, file_path, re.IGNORECASE)
+            if match:
+                return match.group(1)
+
+        return None
+
+    @staticmethod
+    def _extract_key_value_fields(params: dict) -> dict:
+        """
+        Извлечь все известные поля из словаря key=value.
+
+        Args:
+            params: Словарь параметров из строки лога.
+
+        Returns:
+            Словарь с известными полями LogEntry.
+        """
+        fields: dict = {}
+
+        # Основные поля (без префиксов)
+        fields["computer_name"] = params.get("computerName")
+        fields["user"] = params.get("Usr")
+        fields["description"] = params.get("Descr") or params.get("descr")
+        fields["context"] = params.get("context") or params.get("Context")
+        fields["duration"] = None
+        fields["client_id"] = params.get("T:clientID")
+        fields["application_name"] = params.get("T:applicationName")
+        fields["connect_id"] = params.get("T:connectID")
+        fields["session_id"] = params.get("SessionID")
+        fields["module"] = params.get("module")
+        fields["method"] = params.get("method")
+        fields["regions"] = params.get("regions")
+        fields["locks"] = params.get("locks")
+        fields["sql"] = params.get("Sql") or params.get("sql")
+        fields["rows"] = None
+        fields["rows_affected"] = None
+        fields["memory"] = None
+
+        # processName — проверяем оба варианта
+        fields["process_name"] = (
+            params.get("p:processName") or params.get("t:processName") or params.get("processName")
+        )
+
+        # Длительность
+        if "duration" in params:
+            try:
+                fields["duration"] = int(params["duration"])
+            except ValueError:
+                pass
+        elif "Duration" in params:
+            try:
+                fields["duration"] = int(params["Duration"])
+            except ValueError:
+                pass
+
+        # Числовые поля
+        if "rows" in params:
+            try:
+                fields["rows"] = int(params["rows"])
+            except ValueError:
+                pass
+
+        if "rowsaffected" in params:
+            try:
+                fields["rows_affected"] = int(params["rowsaffected"])
+            except ValueError:
+                pass
+
+        # Memory — может быть отрицательным (освобождение памяти)
+        if "Memory" in params:
+            try:
+                fields["memory"] = int(params["Memory"])
+            except ValueError:
+                pass
+
+        return fields
 
     @classmethod
     def _parse_standard(
@@ -94,13 +210,12 @@ class LogEntry:
     ) -> Optional["LogEntry"]:
         """
         Парсинг формата: 2024-01-15 10:30:00.123+0300 EXCP process-name ...
+        Или: 2024-01-15 10:30:00.123+0300 EXCP,p:processName=korp,Usr=Иванов,...
 
         Returns:
             LogEntry или None.
         """
-        pattern = (
-            r"^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{4})?)\s+(\w+)\s+(.+)$"
-        )
+        pattern = r"^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{4})?)\s+(\w+)\s*,?\s*(.+)?$"
         match = re.match(pattern, line)
 
         if not match:
@@ -108,12 +223,54 @@ class LogEntry:
 
         timestamp_str = match.group(1)
         event_name = match.group(2)
-        rest = match.group(3)
+        rest = match.group(3) or ""
 
         timestamp = cls._parse_timestamp(timestamp_str)
         if not timestamp:
             return None
 
+        rest = rest.strip()
+        if not rest:
+            return cls(
+                timestamp=timestamp,
+                event_name=event_name,
+                format="1c-techjournal-standard",
+            )
+
+        # Проверяем, key=value формат (через запятую)
+        if "," in rest and "=" in rest:
+            params = {}
+            for param in rest.split(","):
+                if "=" in param:
+                    key, value = param.split("=", 1)
+                    params[key.strip()] = value.strip().strip("'\"")
+
+            fields = cls._extract_key_value_fields(params)
+            return cls(
+                timestamp=timestamp,
+                event_name=event_name,
+                process_name=fields["process_name"],
+                computer_name=fields["computer_name"],
+                user=fields["user"],
+                description=fields["description"],
+                duration=fields["duration"],
+                context=fields["context"],
+                client_id=fields["client_id"],
+                application_name=fields["application_name"],
+                connect_id=fields["connect_id"],
+                session_id=fields["session_id"],
+                module=fields["module"],
+                method=fields["method"],
+                regions=fields["regions"],
+                locks=fields["locks"],
+                sql=fields["sql"],
+                rows=fields["rows"],
+                rows_affected=fields["rows_affected"],
+                memory=fields["memory"],
+                format="1c-techjournal-standard",
+            )
+
+        # Позиционный формат: process-name computer user description
         parts = rest.split(None, 3)
         process_name = parts[0] if len(parts) > 0 else None
         computer_name = parts[1] if len(parts) > 1 else None
@@ -137,11 +294,12 @@ class LogEntry:
     def _parse_short(cls, line: str, base_date: Optional[datetime] = None) -> Optional["LogEntry"]:
         """
         Парсинг формата: 15.01.2024 10:30:00 EXCP process-name ...
+        Или: 15.01.2024 10:30:00 EXCP,p:processName=korp,Usr=Иванов,...
 
         Returns:
             LogEntry или None.
         """
-        pattern = r"^(\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2})\s+(\w+)\s+(.+)$"
+        pattern = r"^(\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2})\s+(\w+)\s*,?\s*(.+)?$"
         match = re.match(pattern, line)
 
         if not match:
@@ -149,13 +307,55 @@ class LogEntry:
 
         timestamp_str = match.group(1)
         event_name = match.group(2)
-        rest = match.group(3)
+        rest = match.group(3) or ""
 
         try:
             timestamp = datetime.strptime(timestamp_str, "%d.%m.%Y %H:%M:%S")
         except ValueError:
             return None
 
+        rest = rest.strip()
+        if not rest:
+            return cls(
+                timestamp=timestamp,
+                event_name=event_name,
+                format="1c-techjournal-short",
+            )
+
+        # Проверяем, key=value формат (через запятую)
+        if "," in rest and "=" in rest:
+            params = {}
+            for param in rest.split(","):
+                if "=" in param:
+                    key, value = param.split("=", 1)
+                    params[key.strip()] = value.strip().strip("'\"")
+
+            fields = cls._extract_key_value_fields(params)
+            return cls(
+                timestamp=timestamp,
+                event_name=event_name,
+                process_name=fields["process_name"],
+                computer_name=fields["computer_name"],
+                user=fields["user"],
+                description=fields["description"],
+                duration=fields["duration"],
+                context=fields["context"],
+                client_id=fields["client_id"],
+                application_name=fields["application_name"],
+                connect_id=fields["connect_id"],
+                session_id=fields["session_id"],
+                module=fields["module"],
+                method=fields["method"],
+                regions=fields["regions"],
+                locks=fields["locks"],
+                sql=fields["sql"],
+                rows=fields["rows"],
+                rows_affected=fields["rows_affected"],
+                memory=fields["memory"],
+                format="1c-techjournal-short",
+            )
+
+        # Позиционный формат: process-name computer user description
         parts = rest.split(None, 3)
         process_name = parts[0] if len(parts) > 0 else None
         computer_name = parts[1] if len(parts) > 1 else None
@@ -181,11 +381,12 @@ class LogEntry:
     ) -> Optional["LogEntry"]:
         """
         Парсинг формата: 2024-01-15T10:30:00.123Z EXCP ...
+        Или: 2024-01-15T10:30:00.123Z EXCP,p:processName=korp,Usr=Иванов,...
 
         Returns:
             LogEntry или None.
         """
-        pattern = r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\s+(\w+)\s+(.+)$"
+        pattern = r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\s+(\w+)\s*,?\s*(.+)?$"
         match = re.match(pattern, line)
 
         if not match:
@@ -193,7 +394,7 @@ class LogEntry:
 
         timestamp_str = match.group(1)
         event_name = match.group(2)
-        rest = match.group(3)
+        rest = match.group(3) or ""
 
         # Упрощаем парсинг ISO8601
         ts_clean = timestamp_str.replace("Z", "").replace("T", " ")
@@ -207,6 +408,48 @@ class LogEntry:
             except ValueError:
                 return None
 
+        rest = rest.strip()
+        if not rest:
+            return cls(
+                timestamp=timestamp,
+                event_name=event_name,
+                format="iso8601",
+            )
+
+        # Проверяем, key=value формат (через запятую)
+        if "," in rest and "=" in rest:
+            params = {}
+            for param in rest.split(","):
+                if "=" in param:
+                    key, value = param.split("=", 1)
+                    params[key.strip()] = value.strip().strip("'\"")
+
+            fields = cls._extract_key_value_fields(params)
+            return cls(
+                timestamp=timestamp,
+                event_name=event_name,
+                process_name=fields["process_name"],
+                computer_name=fields["computer_name"],
+                user=fields["user"],
+                description=fields["description"],
+                duration=fields["duration"],
+                context=fields["context"],
+                client_id=fields["client_id"],
+                application_name=fields["application_name"],
+                connect_id=fields["connect_id"],
+                session_id=fields["session_id"],
+                module=fields["module"],
+                method=fields["method"],
+                regions=fields["regions"],
+                locks=fields["locks"],
+                sql=fields["sql"],
+                rows=fields["rows"],
+                rows_affected=fields["rows_affected"],
+                memory=fields["memory"],
+                format="iso8601",
+            )
+
+        # Позиционный формат: process-name computer user description
         parts = rest.split(None, 3)
         process_name = parts[0] if len(parts) > 0 else None
         computer_name = parts[1] if len(parts) > 1 else None
@@ -322,36 +565,42 @@ class LogEntry:
         except ValueError:
             return None
 
+        # Извлекаем duration из CSV формата: HH:MM:SS.ffffff-N или MM:SS.ffffff-N
+        # Число после дефиса — это длительность в микросекундах
+        csv_duration = cls._extract_csv_duration(time_str)
+
         # Парсим параметры (key=value)
         params_str = parts[3] if len(parts) > 3 else ""
         params = {}
         for param in params_str.split(","):
             if "=" in param:
                 key, value = param.split("=", 1)
-                params[key.strip()] = value.strip()
+                params[key.strip()] = value.strip().strip("'\"")
 
-        # Извлекаем известные поля
-        process_name = params.get("p:processName")
-        computer_name = params.get("t:computerName")
-        user = params.get("t:Usr")
-        description = params.get("Descr") or params.get("descr")
-
-        # Длительность
-        duration = None
-        if "Duration" in params:
-            try:
-                duration = int(params["Duration"])
-            except ValueError:
-                pass
+        # Используем универсальную функцию извлечения полей
+        fields = cls._extract_key_value_fields(params)
 
         return cls(
             timestamp=timestamp,
             event_name=event_name,
-            process_name=process_name,
-            computer_name=computer_name,
-            user=user,
-            description=description,
-            duration=duration,
+            process_name=fields["process_name"],
+            computer_name=fields["computer_name"],
+            user=fields["user"],
+            description=fields["description"],
+            duration=fields["duration"] or csv_duration,
+            context=fields["context"],
+            client_id=fields["client_id"],
+            application_name=fields["application_name"],
+            connect_id=fields["connect_id"],
+            session_id=fields["session_id"],
+            module=fields["module"],
+            method=fields["method"],
+            regions=fields["regions"],
+            locks=fields["locks"],
+            sql=fields["sql"],
+            rows=fields["rows"],
+            rows_affected=fields["rows_affected"],
+            memory=fields["memory"],
             format="1c-csv",
         )
 
@@ -376,22 +625,61 @@ class LogEntry:
 
     @staticmethod
     def _extract_duration(description: Optional[str]) -> Optional[int]:
-        """Извлечь длительность из описания (в мкс)"""
+        """Извлечь длительность из описания (в мкс)
+
+        1С записывает длительность в микросекундах (мкс).
+        Примеры форматов:
+        - Duration: 1250000
+        - Длительность: 1250000
+        - 1250000 мкс
+        - 1250000us
+        """
         if not description:
             return None
 
         patterns = [
+            # Именованные паттерны (приоритет)
             r"Duration[:\s]+(\d+)",
             r"Длительность[:\s]+(\d+)",
             r"(\d+)\s*мкс",
             r"(\d+)\s*us\b",
+            r"(\d+)\s*микросекунд",
+            # Паттерн для SQL: большое число (>= 5 цифр) в контексте
+            r"(?:^|[\s,;])(\d{5,})(?:\s|$)",
         ]
 
         for pattern in patterns:
             match = re.search(pattern, description, re.IGNORECASE)
             if match:
-                return int(match.group(1))
+                value = int(match.group(1))
+                # Защита от неверных значений: если число слишком маленькое
+                # для микросекунд (< 1000), это скорее всего не длительность
+                if value >= 1000:
+                    return value
 
+        return None
+
+    @staticmethod
+    def _extract_csv_duration(time_str: str) -> Optional[int]:
+        """Извлечь длительность из CSV формата времени: HH:MM:SS.ffffff-N
+
+        Формат 1С CSV: время-длительность, где длительность в микросекундах.
+        Примеры:
+        - 00:01.365009-1 → 1 мкс
+        - 00:00.035002-500000 → 500000 мкс = 500 мс
+        - 50:30.440005-0 → 0 мкс
+
+        Args:
+            time_str: Строка времени из CSV лога.
+
+        Returns:
+            Длительность в микросекундах или None.
+        """
+        import re
+
+        match = re.search(r"-(\d+)$", time_str)
+        if match:
+            return int(match.group(1))
         return None
 
 
