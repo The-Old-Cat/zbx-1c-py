@@ -254,29 +254,6 @@ async def get_summary(
     }
 
 
-@app.get("/api/report/telegram")
-async def get_telegram_report(
-    period_minutes: int = Query(default=5, ge=1, le=1440, description="Период сбора в минутах")
-):
-    """
-    Получить краткий отчёт в формате для Telegram (Markdown)
-
-    Human Friendly формат с эмодзи, ключевыми цифрами, топ проблем,
-    утечками памяти и дельтами потребления.
-
-    Идеально для пересылки админам в мессенджеры.
-    """
-    collector = get_collector()
-    report = collector.generate_telegram_report(period_minutes=period_minutes)
-
-    return {
-        "report": report,
-        "format": "markdown",
-        "period_minutes": period_minutes,
-        "timestamp": datetime.now().isoformat(),
-    }
-
-
 @app.get("/api/memory/leaks")
 async def get_memory_leaks():
     """
