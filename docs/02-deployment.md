@@ -1,47 +1,24 @@
-# Развертывание пакетов zbx-1c-rac и zbx-1c-techlog
+# Развертывание пакета zbx-1c-techlog
 
-## 📦 Обзор архитектуры
+## 📦 Обзор
 
-Проект разделен на **два независимых пакета**:
+Пакет **zbx-1c-techlog** для мониторинга 1С:Предприятия через техжурнал в системе Zabbix.
 
 | Пакет | Назначение | Зависимости |
 |-------|------------|-------------|
-| **zbx-1c-rac** | Мониторинг через RAC (сессии, задания, кластеры) | ~5 пакетов |
 | **zbx-1c-techlog** | Мониторинг через техжурнал 1С (ошибки, блокировки, SQL) | ~4 пакета |
 
-### Преимущества разделения
+### Преимущества
 
-✅ **Независимое развертывание** — устанавливайте только нужный пакет  
-✅ **Минимум зависимостей** — никаких лишних пакетов  
-✅ **Разные конфигурации** — `.env.rac` и `.env.techlog` не конфликтуют  
-✅ **Гибкость** — можно использовать оба пакета вместе или по отдельности
+✅ **Минимум зависимостей** — только необходимые пакеты
+✅ **Простая конфигурация** — `.env.techlog` для всех настроек
+✅ **Гибкость** — мониторинг ошибок, блокировок, медленного SQL
 
 ---
 
 ## 🚀 Установка
 
-### Вариант 1: Только мониторинг RAC
-
-```bash
-# Перейдите в директорию пакета
-cd packages/zbx-1c-rac
-
-# Установите пакет
-pip install -e .
-
-# Или через uv
-uv pip install -e .
-```
-
-**Проверка установки:**
-```bash
-zbx-1c-rac --help
-zbx-1c-rac check-config
-```
-
----
-
-### Вариант 2: Только мониторинг техжурнала
+### Мониторинг техжурнала
 
 ```bash
 # Перейдите в директорию пакета
@@ -62,56 +39,7 @@ zbx-1c-techlog check
 
 ---
 
-### Вариант 3: Оба пакета вместе
-
-```bash
-# Установите оба пакета
-pip install -e ./packages/zbx-1c-rac -e ./packages/zbx-1c-techlog
-
-# Или через uv
-uv pip install -e ./packages/zbx-1c-rac -e ./packages/zbx-1c-techlog
-```
-
-**Проверка установки:**
-```bash
-zbx-1c-rac --help
-zbx-1c-techlog --help
-```
-
----
-
 ## ⚙️ Настройка конфигурации
-
-### Для zbx-1c-rac
-
-1. **Скопируйте пример конфигурации:**
-   ```bash
-   cp .env.rac.example .env.rac
-   ```
-
-2. **Отредактируйте `.env.rac`:**
-   ```env
-   # Путь к rac (укажите вашу версию 1С)
-   RAC_PATH=C:/Program Files/1cv8/8.3.27.1786/bin/rac.exe
-
-   # RAS сервис
-   RAC_HOST=127.0.0.1
-   RAC_PORT=1545
-
-   # Аутентификация (если требуется)
-   USER_NAME=admin
-   USER_PASS=password
-
-   # Логи
-   LOG_PATH=G:/Automation/zbx-1c-py/logs/rac
-   ```
-
-3. **Проверьте конфигурацию:**
-   ```bash
-   zbx-1c-rac check-config
-   ```
-
----
 
 ### Для zbx-1c-techlog
 
@@ -142,38 +70,6 @@ zbx-1c-techlog --help
 
 ## 📋 Доступные команды
 
-### zbx-1c-rac
-
-| Команда | Описание |
-|---------|----------|
-| `zbx-1c-rac check` | Проверка доступности RAS |
-| `zbx-1c-rac check-config` | Проверка конфигурации |
-| `zbx-1c-rac discovery` | Обнаружение кластеров (LLD для Zabbix) |
-| `zbx-1c-rac clusters` | Список кластеров |
-| `zbx-1c-rac metrics [cluster_id]` | Метрики кластера |
-| `zbx-1c-rac status <cluster_id>` | Статус кластера |
-| `zbx-1c-rac infobases <cluster_id>` | Информационные базы |
-| `zbx-1c-rac sessions <cluster_id>` | Сессии кластера |
-| `zbx-1c-rac jobs <cluster_id>` | Фоновые задания |
-| `zbx-1c-rac test` | Тестирование подключения |
-
-**Примеры:**
-```bash
-# Проверка RAS
-zbx-1c-rac check
-
-# Обнаружение кластеров для Zabbix
-zbx-1c-rac discovery
-
-# Метрики конкретного кластера
-zbx-1c-rac metrics abc123-def456-ghi789
-
-# Все команды с --help
-zbx-1c-rac <command> --help
-```
-
----
-
 ### zbx-1c-techlog
 
 | Команда | Описание |
@@ -202,25 +98,6 @@ zbx-1c-techlog check
 
 ## 🔗 Интеграция с Zabbix
 
-### Для zbx-1c-rac
-
-**UserParameter в zabbix_agentd.conf:**
-```ini
-# Обнаружение кластеров
-UserParameter=zbx1cpy.rac.discovery,zbx-1c-rac discovery
-
-# Метрики кластера
-UserParameter=zbx1cpy.rac.metrics[*],zbx-1c-rac metrics $1
-
-# Статус кластера
-UserParameter=zbx1cpy.rac.status[*],zbx-1c-rac status $1
-
-# Проверка RAS
-UserParameter=zbx1cpy.rac.check,zbx-1c-rac check
-```
-
----
-
 ### Для zbx-1c-techlog
 
 **UserParameter в zabbix_agentd.conf:**
@@ -245,17 +122,6 @@ zbx-1c-techlog send --period 5
 ```
 g:\Automation\zbx-1c-py\
 ├── packages/
-│   ├── zbx-1c-rac/              # Пакет мониторинга через RAC
-│   │   ├── pyproject.toml       # Зависимости и настройки
-│   │   ├── README.md            # Документация пакета
-│   │   ├── CROSSPLATFORM.md     # Кроссплатформенность
-│   │   ├── tests/               # Тесты пакета
-│   │   └── src/zbx_1c_rac/
-│   │       ├── cli/             # CLI команды
-│   │       ├── core/            # Конфигурация
-│   │       ├── monitoring/      # Мониторинг (сессии, задания)
-│   │       └── utils/           # Утилиты (rac_client, converters)
-│   │
 │   └── zbx-1c-techlog/          # Пакет мониторинга техжурнала
 │       ├── pyproject.toml       # Зависимости и настройки
 │       ├── README.md            # Документация пакета
@@ -276,30 +142,9 @@ g:\Automation\zbx-1c-py\
 ├── logs/                        # Логи (создаётся автоматически)
 ├── config/                      # Конфигурация 1С (logcfg.xml)
 ├── .env.example                 # Общий пример конфигурации
-├── .env.rac.example             # Пример конфигурации RAC
 ├── .env.techlog.example         # Пример конфигурации техжурнала
 └── README.md
 ```
-
----
-
-## 🗑️ Удалённые компоненты
-
-Следующие компоненты **удалены** при переходе на модульную архитектуру:
-
-| Компонент | Причина | Альтернатива |
-|-----------|---------|--------------|
-| `src/zbx_1c/` | Монолитная версия | `packages/zbx-1c-rac/`, `packages/zbx-1c-techlog/` |
-| `pyproject.toml` (корневой) | Относился к монолиту | `packages/*/pyproject.toml` |
-| `tests/` (корневые) | Тесты монолитной версии | `packages/*/tests/` |
-| `data/` | Пустая директория | — |
-| `shared/` | Не использовался | Утилиты в `packages/*/src/zbx_1c_*/utils/` |
-
-**Текущая структура:**
-- ✅ `packages/zbx-1c-rac/` — активный пакет
-- ✅ `packages/zbx-1c-techlog/` — активный пакет
-- ✅ `scripts/` — скрипты CI/CD
-- ✅ `zabbix/` — UserParameter для Zabbix
 
 ---
 
@@ -307,18 +152,6 @@ g:\Automation\zbx-1c-py\
 
 ### Добавление зависимостей
 
-**Для zbx-1c-rac:**
-```toml
-# packages/zbx-1c-rac/pyproject.toml
-[project]
-dependencies = [
-    "loguru>=0.7.2",
-    "pydantic>=2.6.0",
-    # Добавьте вашу зависимость
-]
-```
-
-**Для zbx-1c-techlog:**
 ```toml
 # packages/zbx-1c-techlog/pyproject.toml
 [project]
@@ -333,7 +166,6 @@ dependencies = [
 
 ```bash
 # Через uv run
-uv run --package zbx-1c-rac zbx-1c-rac check
 uv run --package zbx-1c-techlog zbx-1c-techlog check
 ```
 
@@ -341,41 +173,21 @@ uv run --package zbx-1c-techlog zbx-1c-techlog check
 
 ## ❓ FAQ
 
-### Можно ли использовать оба пакета вместе?
-
-Да! Установите оба пакета:
-```bash
-pip install -e ./packages/zbx-1c-rac -e ./packages/zbx-1c-techlog
-```
-
-Конфигурации разделены (`.env.rac` и `.env.techlog`), поэтому конфликтов не будет.
-
-### Как обновить пакеты?
+### Как обновить пакет?
 
 ```bash
 # Через pip
-pip install -e ./packages/zbx-1c-rac --upgrade
 pip install -e ./packages/zbx-1c-techlog --upgrade
 
 # Через uv
-uv pip install -e ./packages/zbx-1c-rac --upgrade
 uv pip install -e ./packages/zbx-1c-techlog --upgrade
 ```
 
 ### Где хранятся логи?
 
-По умолчанию:
-- **zbx-1c-rac**: `logs/rac/`
-- **zbx-1c-techlog**: `logs/techlog/`
+По умолчанию: `logs/techlog/`
 
-Пути настраиваются в соответствующих `.env` файлах.
-
-### Что делать если rac не найден?
-
-Убедитесь, что:
-1. 1С установлена на сервере
-2. Путь `RAC_PATH` указан верно в `.env.rac`
-3. У пользователя есть права на выполнение rac
+Путь настраивается в `.env.techlog`.
 
 ### Как отладить проблемы с техжурналом?
 

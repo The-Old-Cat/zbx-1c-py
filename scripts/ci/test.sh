@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CI/CD скрипт для тестирования и сборки пакетов zbx-1c-rac и zbx-1c-techlog
+# CI/CD скрипт для тестирования и сборки пакета zbx-1c-techlog
 
 set -e
 
@@ -49,25 +49,6 @@ print_success "pip: $(pip --version)"
 print_header "Установка dev-зависимостей"
 pip install pytest pytest-cov black mypy pylint
 
-# Тестирование zbx-1c-rac
-print_header "Тестирование zbx-1c-rac"
-cd packages/zbx-1c-rac
-
-echo "Установка пакета..."
-pip install -e .
-
-echo "Запуск тестов..."
-pytest tests/ -v --tb=short
-
-echo "Проверка типов (mypy)..."
-mypy src/ --ignore-missing-imports || true
-
-echo "Проверка стиля (pylint)..."
-pylint src/ --disable=C0114,C0115,C0116,R0903,W0612 || true
-
-print_success "zbx-1c-rac: тесты пройдены"
-cd ../..
-
 # Тестирование zbx-1c-techlog
 print_header "Тестирование zbx-1c-techlog"
 cd packages/zbx-1c-techlog
@@ -91,6 +72,5 @@ cd ../..
 print_header "Итоги"
 print_success "Все тесты пройдены!"
 echo ""
-echo "Пакеты готовы к публикации:"
-echo "  - packages/zbx-1c-rac"
+echo "Пакет готов к публикации:"
 echo "  - packages/zbx-1c-techlog"

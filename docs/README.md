@@ -11,42 +11,21 @@
 | Документ | Описание |
 |----------|----------|
 | **[01-quickstart.md](01-quickstart.md)** | Быстрый старт и установка |
-| **[01-packages.md](01-packages.md)** | О модульных пакетах |
+| **[01-packages.md](01-packages.md)** | О пакете |
 
-### 02. Пакеты
+### 02. Пакет и развёртывание
 
-| Пакет | Документация |
+| Документ | Описание |
 |-------|--------------|
-| **zbx-1c-rac** | [02-zbx-1c-rac.md](02-zbx-1c-rac.md) — мониторинг через RAC |
-| **zbx-1c-techlog** | [02-zbx-1c-techlog.md](02-zbx-1c-techlog.md) — мониторинг через техжурнал |
+| **[02-deployment.md](02-deployment.md)** | Развёртывание пакета |
+| **[02-zbx-1c-techlog.md](02-zbx-1c-techlog.md)** | Мониторинг через техжурнал |
 
-### 03. Миграция
-
-| Документ | Описание |
-|----------|----------|
-| **[03-migration.md](03-migration.md)** | Переход с монолитной на модульную архитектуру |
-
-### 04. Настройка и интеграция
+### 03. Настройка
 
 | Документ | Описание |
 |----------|----------|
-| **[04-zabbix-integration.md](04-zabbix-integration.md)** | Интеграция с Zabbix (UserParameter, шаблоны) |
-| **[04-cluster-status.md](04-cluster-status.md)** | Мониторинг статуса кластера |
 | **[04-logcfg-setup.md](04-logcfg-setup.md)** | Настройка техжурнала 1С (logcfg.xml) |
-
-### 05. Кроссплатформенность
-
-| Документ | Описание |
-|----------|----------|
-| **[05-crossplatform.md](05-crossplatform.md)** | Общая кроссплатформенность проекта |
-| **[05-zbx-1c-rac-crossplatform.md](05-zbx-1c-rac-crossplatform.md)** | Кроссплатформенность zbx-1c-rac |
-
-### 06. Архитектура и API
-
-| Документ | Описание |
-|----------|----------|
-| **[06-architecture.md](06-architecture.md)** | Архитектура проекта |
-| **[06-api.md](06-api.md)** | REST API для интеграции |
+| **[07-techlog-reference.md](07-techlog-reference.md)** | Справочник по техжурналу |
 
 ---
 
@@ -57,67 +36,42 @@ docs/
 ├── README.md                          # Этот файл (навигация)
 │
 ├── 01-quickstart.md                   # Быстрый старт
-├── 01-packages.md                     # О пакетах
+├── 01-packages.md                     # О пакете
 │
 ├── 02-deployment.md                   # Развёртывание
-├── 02-zbx-1c-rac.md                   # Пакет RAC
 ├── 02-zbx-1c-techlog.md               # Пакет техжурнала
 │
-├── 03-migration.md                    # Миграция с монолита
-│
-├── 04-zabbix-integration.md           # Интеграция с Zabbix
-├── 04-cluster-status.md               # Мониторинг кластеров
 ├── 04-logcfg-setup.md                 # Настройка logcfg.xml
 │
-├── 05-crossplatform.md                # Общая кроссплатформенность
-├── 05-zbx-1c-rac-crossplatform.md     # Кроссплатформенность RAC
-│
-└── 06-architecture.md                 # Архитектура
-└── 06-api.md                          # REST API
+└── 07-techlog-reference.md            # Справочник по техжурналу
 ```
 
 ---
 
-## 🎯 Модульная архитектура
+## 🎯 Мониторинг через техжурнал
 
-Проект разделён на **два независимых пакета**:
+Пакет **zbx-1c-techlog** для мониторинга 1С:Предприятия через техжурнал в системе Zabbix.
 
 | Пакет | Назначение | Установка |
 |-------|------------|-----------|
-| **[zbx-1c-rac](02-zbx-1c-rac.md)** | Мониторинг через RAC (сессии, задания, кластеры) | `pip install -e packages/zbx-1c-rac` |
 | **[zbx-1c-techlog](02-zbx-1c-techlog.md)** | Мониторинг через техжурнал 1С (ошибки, блокировки, SQL) | `pip install -e packages/zbx-1c-techlog` |
 
 **Преимущества:**
-- ✅ Независимое развёртывание
 - ✅ Минимум зависимостей
-- ✅ Раздельные конфигурации (`.env.rac`, `.env.techlog`)
+- ✅ Простая конфигурация (`.env.techlog`)
+- ✅ Мониторинг ошибок, блокировок, медленного SQL
 
 ---
 
 ## 🚀 Быстрый старт
 
-### 1. Установка zbx-1c-rac
-
-```bash
-cd packages/zbx-1c-rac
-pip install -e .
-cp ../../.env.rac.example ../../.env.rac
-zbx-1c-rac check-config
-```
-
-### 2. Установка zbx-1c-techlog
+### Установка zbx-1c-techlog
 
 ```bash
 cd packages/zbx-1c-techlog
 pip install -e .
 cp ../../.env.techlog.example ../../.env.techlog
 zbx-1c-techlog check
-```
-
-### 3. Оба пакета вместе
-
-```bash
-pip install -e ./packages/zbx-1c-rac -e ./packages/zbx-1c-techlog
 ```
 
 ---
@@ -131,4 +85,4 @@ pip install -e ./packages/zbx-1c-rac -e ./packages/zbx-1c-techlog
 
 ## 📅 Дата обновления документации
 
-Последнее обновление: **2026-03-10**
+Последнее обновление: **2026-04-14**
