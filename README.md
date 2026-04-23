@@ -105,21 +105,38 @@ cp .env.example .env
 2. Отредактируйте `.env`, указав свои значения:
 
 ```ini
-# Путь к логам техжурнала 1С
+# ===========================================
+# ЕДИНЫЙ КОНФИГ — все компоненты
+# ===========================================
+
+# Пути к логам техжурнала 1С
 TECHJOURNAL_LOG_BASE=C:/1c_log
 TECHJOURNAL_LOG_ANALYTICS=C:/1c_log_analytics
 
 # Период сбора метрик (минуты)
 TECHJOURNAL_PERIOD_MINUTES=5
 
-# Zabbix сервер
+# Сервер 1С
+SERVER_1C_HOST=localhost
+SERVER_1C_PORT=1545
+
+# Zabbix
 ZABBIX_SERVER=127.0.0.1
 ZABBIX_PORT=10051
 
-# Путь к директории для логов
-LOG_PATH=./logs
+# Публикация 1С
+PUBLISH_MODE=FULL
+PUBLISH_ROOT=/htdocs
+TECH_SUFFIX=_mg
 
-# Режим отладки
+# Apache
+APACHE_VERSION=2.4.66
+APACHE_INSTALL_PATH_WIN=C:/Apache24
+APACHE_INSTALL_PATH_LINUX=/etc/apache2
+
+# Логи
+LOG_LEVEL=INFO
+LOG_PATH=./logs
 DEBUG=False
 ```
 
@@ -341,6 +358,11 @@ DEBUG=False
 | `TECHJOURNAL_LOG_BASE` | Путь к логам техжурнала 1С | — |
 | `TECHJOURNAL_LOG_ANALYTICS` | Путь к аналитическим логам | — |
 | `TECHJOURNAL_PERIOD_MINUTES` | Период сбора метрик (минуты) | `5` |
+| `SERVER_1C_HOST` | Адрес сервера 1С | `localhost` |
+| `SERVER_1C_PORT` | Порт сервера 1С | `1545` |
+| `PUBLISH_MODE` | Режим публикации (FULL/THIN) | `FULL` |
+| `PUBLISH_ROOT` | Корневая директория публикации | `/htdocs` |
+| `TECH_SUFFIX` | Суффикс для технических имён | `_mg` |
 | `ZABBIX_SERVER` | Адрес Zabbix сервера | `127.0.0.1` |
 | `ZABBIX_PORT` | Порт Zabbix сервера | `10051` |
 | `LOG_LEVEL` | Уровень логирования | `INFO` |

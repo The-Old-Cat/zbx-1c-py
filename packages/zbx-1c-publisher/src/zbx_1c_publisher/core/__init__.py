@@ -1,0 +1,70 @@
+"""Модуль core — конфигурация, обнаружение, генерация VRD, публикация и Apache."""
+
+from .apache_deploy import (
+    deploy_apache,
+    check_apache_status,
+    get_install_path,
+    get_httpd_exe,
+    get_apache_conf_dir,
+    is_port_free,
+    find_free_port,
+    ensure_free_port,
+    restart_apache_service,
+    stop_apache_service,
+    start_apache_service,
+    get_apache_version,
+    create_1c_conf_template,
+    ensure_1c_conf_included,
+)
+from .config import PublisherConfig
+from .discovery import InfoBaseInfo, get_bases_from_server
+from .publisher import (
+    publish_base,
+    publish_multiple_bases,
+    delete_publish,
+    delete_multiple_bases,
+    delete_all_published_bases,
+    get_published_bases,
+    find_webinst,
+)
+from .vrd_generator import (
+    generate_vrd_from_template,
+    generate_vrd_inplace,
+    get_template_path,
+    validate_vrd,
+    generate_default_vrd,
+    disable_web_client_in_vrd,
+)
+
+__all__ = [
+    "PublisherConfig",
+    "InfoBaseInfo",
+    "get_bases_from_server",
+    "generate_vrd_from_template",
+    "generate_vrd_inplace",
+    "get_template_path",
+    "validate_vrd",
+    "generate_default_vrd",
+    "disable_web_client_in_vrd",
+    "publish_base",
+    "publish_multiple_bases",
+    "delete_publish",
+    "delete_multiple_bases",
+    "delete_all_published_bases",
+    "get_published_bases",
+    "find_webinst",
+    "deploy_apache",
+    "check_apache_status",
+    "get_install_path",
+    "get_httpd_exe",
+    "get_apache_conf_dir",
+    "is_port_free",
+    "find_free_port",
+    "ensure_free_port",
+    "restart_apache_service",
+    "stop_apache_service",
+    "start_apache_service",
+    "get_apache_version",
+    "create_1c_conf_template",
+    "ensure_1c_conf_included",
+]

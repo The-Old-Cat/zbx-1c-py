@@ -1,8 +1,5 @@
 {
     "recommendations": [
-        // --- Искусственный интеллект ---
-        "Qodo.codium",
-        "qwenlm.qwen-code-vscode-ide-companion",
         // --- Python и FastAPI ---
         "ms-python.python",
         "ms-python.vscode-pylance",
