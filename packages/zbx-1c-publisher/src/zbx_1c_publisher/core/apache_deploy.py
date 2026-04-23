@@ -100,9 +100,13 @@ def is_admin() -> tuple[bool, str]:
             return False, "Ошибка проверки прав Windows."
 
     if sys_platform == "linux":
-        if hasattr(os, "getuid"):
-            return os.getuid() == 0, "Нужны права root (sudo)."
-        return False, "os.getuid недоступен."
+        try:
+            return os.geteuid() == 0, "Нужны права root (sudo)."
+        except AttributeError:
+            try:
+                return os.getuid() == 0, "Нужны права root (sudo)."
+            except AttributeError:
+                return False, "Не удалось проверить права."
 
     return True, ""
 
@@ -254,8 +258,16 @@ def run_cmd(cmd: list[str], check: bool = False) -> tuple[bool, str]:
     """
     logger.debug("Выполняется: %s", " ".join(cmd))
     try:
+        # Для Windows используем shell=True для команд net/sc
+        use_shell = platform.system().lower() == "windows" and cmd[0] in ["net", "sc"]
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, check=check, encoding="utf-8", errors="replace"
+            cmd,
+            capture_output=True,
+            text=True,
+            check=check,
+            encoding="cp866" if platform.system().lower() == "windows" else "utf-8",
+            errors="replace",
+            shell=use_shell,
         )
         if proc.stdout.strip():
             logger.debug("stdout: %s", proc.stdout.strip())
@@ -326,7 +338,7 @@ def cleanup_zip() -> None:
 
 
 def create_1c_conf_template(publish_root: Path, output_path: Optional[Path] = None) -> Path:
-    """Создаёт шаблон конфигурации для 1С."""
+    """Создаёт шаблон конфигурации для 1С с разделением prod и tech."""
     if output_path is None:
         output_path = get_onec_conf_path()
 
@@ -337,12 +349,13 @@ def create_1c_conf_template(publish_root: Path, output_path: Optional[Path] = No
 # Автоматически сгенерировано zbx-1c-publisher
 # ============================================
 
-# Разрешаем выполнение CGI/1C веб-расширений
 <IfModule mod_1cws.c>
     AddHandler 1cws-module .1cws
 </IfModule>
 
-# Настройки для директорий публикаций
+# ============================================
+# ПРОДУКТИВНЫЕ БАЗЫ (полный доступ)
+# ============================================
 <Directory "{htdocs_path}/prod">
     Options Indexes FollowSymLinks
     AllowOverride All
@@ -352,29 +365,152 @@ def create_1c_conf_template(publish_root: Path, output_path: Optional[Path] = No
     </IfModule>
 </Directory>
 
+# ============================================
+# ТЕХНИЧЕСКИЕ БАЗЫ (только мониторинг)
+# ============================================
 <Directory "{htdocs_path}/tech">
-    Options Indexes FollowSymLinks
-    AllowOverride All
+    Options -Indexes -FollowSymLinks -MultiViews
+    AllowOverride None
     Require all granted
+    
     <IfModule mod_1cws.c>
         SetHandler 1cws-module
     </IfModule>
+    
+    <IfModule mod_rewrite.c>
+        RewriteEngine On
+        RewriteRule "/(.*)/webclient" - [F,L]
+        RewriteRule "/(.*)/wsdl" - [F,L]
+        RewriteRule "/(.*)/help" - [F,L]
+        RewriteCond %{{HTTP_USER_AGENT}} "1C\+Enterprise" [NC]
+        RewriteRule .* - [F,L]
+    </IfModule>
+    
+    <IfModule mod_headers.c>
+        Header set X-Frame-Options "DENY"
+        Header set X-Content-Type-Options "nosniff"
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+    </IfModule>
 </Directory>
+
+<LocationMatch "^/tech/.*/odata/.*">
+    Require all granted
+</LocationMatch>
+
+<LocationMatch "^/tech/.*/analytics/.*">
+    Require all granted
+</LocationMatch>
+
+<LocationMatch "^/tech/.*/healthCheck">
+    Require all granted
+</LocationMatch>
 
 # ============================================================
 # Алиасы для конкретных баз (генерируются автоматически)
-# Не редактируйте этот блок вручную
 # ============================================================
 """
-
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(conf_template, encoding="utf-8")
-        logger.info("Создан шаблон конфигурации: %s", output_path)
+        logger.info("✓ Создан шаблон конфигурации: %s", output_path)
         return output_path
     except Exception as e:
         logger.error("Ошибка при создании шаблона: %s", e)
         raise
+
+
+def add_alias_to_1c_conf(
+    alias_name: str, publish_dir: Path, vrd_filename: str = "default.vrd"
+) -> bool:
+    """
+    Добавляет алиас для опубликованной базы в httpd-1c.conf.
+
+    Args:
+        alias_name: Имя алиаса (будет доступен по /alias_name)
+        publish_dir: Путь к директории публикации
+        vrd_filename: Имя VRD файла
+
+    Returns:
+        True если успешно
+    """
+    onec_conf = get_onec_conf_path()
+    publish_path = str(publish_dir).replace("\\", "/")
+
+    alias_block = f"""
+# 1c publication: {alias_name}
+Alias "/{alias_name}" "{publish_path}/"
+<Directory "{publish_path}">
+    AllowOverride All
+    Options None
+    Require all granted
+    SetHandler 1c-application
+    ManagedApplicationDescriptor "{publish_path}/{vrd_filename}"
+</Directory>
+"""
+    try:
+        if not onec_conf.exists():
+            return False
+
+        content = onec_conf.read_text(encoding="utf-8")
+        if f'Alias "/{alias_name}"' in content:
+            logger.debug("Алиас /%s уже существует", alias_name)
+            return True
+
+        with open(onec_conf, "a", encoding="utf-8") as f:
+            f.write(alias_block)
+
+        logger.info("✓ Добавлен алиас: /%s → %s", alias_name, publish_dir)
+        return True
+    except Exception as e:
+        logger.error("Ошибка при добавлении алиаса: %s", e)
+        return False
+
+
+def remove_alias_from_1c_conf(alias_name: str) -> bool:
+    """
+    Удаляет алиас из httpd-1c.conf.
+
+    Args:
+        alias_name: Имя алиаса
+
+    Returns:
+        True если успешно
+    """
+    onec_conf = get_onec_conf_path()
+
+    if not onec_conf.exists():
+        return True
+
+    try:
+        with open(onec_conf, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        new_lines = []
+        skip_until_close = False
+        removed = False
+
+        for line in lines:
+            if f'Alias "/{alias_name}"' in line or f"# 1c publication: {alias_name}" in line:
+                skip_until_close = True
+                removed = True
+                continue
+
+            if skip_until_close:
+                if "</Directory>" in line:
+                    skip_until_close = False
+                continue
+
+            new_lines.append(line)
+
+        if removed:
+            with open(onec_conf, "w", encoding="utf-8") as f:
+                f.writelines(new_lines)
+            logger.info("✓ Удалён алиас для /%s", alias_name)
+
+        return True
+    except Exception as e:
+        logger.error("Ошибка при удалении алиаса: %s", e)
+        return False
 
 
 def ensure_1c_conf_included(apache_conf: Path) -> bool:
@@ -411,25 +547,17 @@ def ensure_1c_conf_included(apache_conf: Path) -> bool:
 
 
 def setup_windows(publish_root: Optional[Path] = None) -> tuple[bool, str]:
-    """Установка и настройка Apache на Windows с автоматическим поиском порта."""
+    """Установка и настройка Apache на Windows."""
     logger.info("--- Настройка Apache для Windows ---")
 
     install_path = get_install_path()
     httpd_exe = get_httpd_exe()
     service_name = get_service_name()
 
-    # Проверка существующей установки
     if install_path.exists():
-        logger.info("Путь %s уже существует.", install_path)
-        apache_conf = install_path / "conf" / "httpd.conf"
-        if apache_conf.exists():
-            free_port = find_free_port()
-            if free_port != 80:
-                change_listen_port(apache_conf, free_port)
-                logger.info("Порт изменён на %d в существующей установке", free_port)
+        logger.info("Apache уже установлен: %s", install_path)
         return True, f"already_installed:{install_path}"
 
-    # Скачивание Apache
     logger.info("Скачивание Apache %s ...", APACHE_VERSION)
     if not download_file(APACHE_DOWNLOAD_URL, APACHE_ZIP_TEMP):
         if APACHE_FALLBACK_URL:
@@ -445,7 +573,6 @@ def setup_windows(publish_root: Optional[Path] = None) -> tuple[bool, str]:
         cleanup_zip()
         return False, "Скачанный файл не является ZIP-архивом"
 
-    # Распаковка
     logger.info("Распаковка архива...")
     try:
         with zipfile.ZipFile(APACHE_ZIP_TEMP, "r") as zip_ref:
@@ -463,18 +590,15 @@ def setup_windows(publish_root: Optional[Path] = None) -> tuple[bool, str]:
     if not httpd_exe.is_file():
         return False, f"Файл {httpd_exe} не найден"
 
-    # Настройка порта
     apache_conf = install_path / "conf" / "httpd.conf"
     free_port = find_free_port()
     change_listen_port(apache_conf, free_port)
     logger.info("Apache будет использовать порт: %d", free_port)
 
-    # Настройка конфигурации для 1С
     if publish_root:
         create_1c_conf_template(publish_root)
         ensure_1c_conf_included(apache_conf)
 
-    # Регистрация службы
     run_cmd([str(httpd_exe), "-k", "uninstall", "-n", service_name])
     ok, stderr = run_cmd([str(httpd_exe), "-k", "install", "-n", service_name])
 
@@ -483,7 +607,6 @@ def setup_windows(publish_root: Optional[Path] = None) -> tuple[bool, str]:
 
     logger.info("Служба '%s' зарегистрирована.", service_name)
 
-    # Запуск службы
     ok, stderr = run_cmd([str(httpd_exe), "-k", "start", "-n", service_name])
 
     if not ok:
@@ -508,43 +631,31 @@ def setup_windows(publish_root: Optional[Path] = None) -> tuple[bool, str]:
 
 
 def setup_linux(publish_root: Optional[Path] = None) -> tuple[bool, str]:
-    """Установка и настройка Apache на Linux с автоматическим поиском порта."""
+    """Установка и настройка Apache на Linux."""
     logger.info("--- Настройка Apache для Linux ---")
-
-    # Проверка ОС
-    os_release = Path("/etc/os-release")
-    is_debian_like = False
-    if os_release.exists():
-        content = os_release.read_text(encoding="utf-8").lower()
-        is_debian_like = any(kw in content for kw in ("debian", "ubuntu", "linuxmint"))
-
-    if not is_debian_like:
-        logger.warning("Поддерживаются только Debian/Ubuntu-совместимые дистрибутивы")
-        # Пробуем продолжить
 
     commands = [
         ["apt", "update"],
         ["apt", "install", "-y", "apache2"],
+        ["a2enmod", "rewrite"],
+        ["a2enmod", "headers"],
         ["systemctl", "enable", "apache2"],
     ]
 
     for cmd in commands:
         ok, stderr = run_cmd(cmd)
-        if not ok:
-            return False, f"Настройка Apache прервана на: {' '.join(cmd)}"
+        if not ok and "already" not in stderr.lower():
+            logger.warning("Команда '%s' вернула ошибку: %s", " ".join(cmd), stderr)
 
-    # Настройка порта
     conf_dir = Path("/etc/apache2")
     free_port = find_free_port()
     ensure_free_port(conf_dir, conf_files=["ports.conf"], start_ports=[free_port])
 
-    # Настройка конфигурации для 1С
     if publish_root:
         create_1c_conf_template(publish_root)
         apache_conf = conf_dir / "apache2.conf"
         ensure_1c_conf_included(apache_conf)
 
-    # Запуск службы
     ok, stderr = run_cmd(["systemctl", "start", "apache2"])
 
     if not ok:
@@ -597,6 +708,7 @@ def check_apache_status() -> tuple[bool, str]:
                 capture_output=True,
                 text=True,
                 check=False,
+                shell=True,
             )
             if check_svc.returncode == 0:
                 return True, f"Служба {service_name} работает"
@@ -678,6 +790,8 @@ def get_apache_version() -> str:
             capture_output=True,
             text=True,
             check=False,
+            encoding="cp866" if platform.system().lower() == "windows" else "utf-8",
+            errors="replace",
         )
         output = proc.stdout or proc.stderr
         match = re.search(r"Apache/(\d+\.\d+\.\d+)", output)
@@ -702,29 +816,28 @@ if __name__ == "__main__":
         help="Действие",
     )
     parser.add_argument("--publish-root", default="C:/Apache24/htdocs", help="Корень публикации")
-    parser.add_argument("--port", type=int, default=80, help="Желаемый порт")
 
     args = parser.parse_args()
 
     if args.action == "deploy":
         success, msg = deploy_apache(Path(args.publish_root))
-        print(f"{'OK' if success else 'ERROR'}: {msg}")
+        print(f"{'✅' if success else '❌'} {msg}")
 
     elif args.action == "status":
         success, msg = check_apache_status()
-        print(f"{'RUNNING' if success else 'STOPPED'}: {msg}")
+        print(f"{'✅' if success else '❌'} {msg}")
 
     elif args.action == "restart":
         success, msg = restart_apache_service()
-        print(f"{'OK' if success else 'ERROR'}: {msg}")
+        print(f"{'✅' if success else '❌'} {msg}")
 
     elif args.action == "stop":
         success, msg = stop_apache_service()
-        print(f"{'OK' if success else 'ERROR'}: {msg}")
+        print(f"{'✅' if success else '❌'} {msg}")
 
     elif args.action == "start":
         success, msg = start_apache_service()
-        print(f"{'OK' if success else 'ERROR'}: {msg}")
+        print(f"{'✅' if success else '❌'} {msg}")
 
     elif args.action == "version":
         version = get_apache_version()
@@ -732,4 +845,4 @@ if __name__ == "__main__":
 
     elif args.action == "config":
         conf_path = create_1c_conf_template(Path(args.publish_root))
-        print(f"Config created: {conf_path}")
+        print(f"✅ Конфиг создан: {conf_path}")
