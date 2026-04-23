@@ -23,14 +23,11 @@ def mask_sensitive_data(text: str) -> str:
     """Маскирует чувствительные данные в строке."""
     if not text:
         return text
-    # Маскируем пароли
     text = re.sub(r"--cluster-pwd=\S+", "--cluster-pwd=***", text)
     text = re.sub(r"--cluster-user=\S+", "--cluster-user=***", text)
     text = re.sub(r"--pwd=\S+", "--pwd=***", text)
     text = re.sub(r"password=\S+", "password=***", text, flags=re.IGNORECASE)
-    # Маскируем строки подключения
     text = re.sub(r"Srvr=\S+;Ref=\S+;", "Srvr=***;Ref=***;", text)
-    # Маскируем имена пользователей в командах
     text = re.sub(r"--user=\S+", "--user=***", text)
     return text
 
@@ -45,26 +42,7 @@ def restart_apache(config: PublisherConfig) -> tuple[bool, str]:
             service_name = config.APACHE_SERVICE_NAME
 
             if apache_bin.exists():
-                # Пробуем перезапустить через службу
-                result = subprocess.run(
-                    ["net", "stop", service_name],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    shell=True,
-                )
-                result = subprocess.run(
-                    ["net", "start", service_name],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    shell=True,
-                )
-                if result.returncode == 0:
-                    logger.info("✅ Apache перезапущен через службу")
-                    return True, "Apache restarted"
-
-                # Если не получилось через службу, пробуем через httpd -k restart
+                # Пробуем перезапустить через httpd -k restart (не трогает службу)
                 result = subprocess.run(
                     [str(apache_bin), "-k", "restart"],
                     capture_output=True,
@@ -73,7 +51,18 @@ def restart_apache(config: PublisherConfig) -> tuple[bool, str]:
                     shell=True,
                 )
                 if result.returncode == 0:
-                    logger.info("✅ Apache перезапущен через httpd -k restart")
+                    logger.info("✅ Apache перезапущен")
+                    return True, "Apache restarted"
+
+                # Если не получилось, пробуем через службу
+                subprocess.run(
+                    ["net", "stop", service_name], capture_output=True, timeout=30, shell=True
+                )
+                result = subprocess.run(
+                    ["net", "start", service_name], capture_output=True, timeout=30, shell=True
+                )
+                if result.returncode == 0:
+                    logger.info("✅ Apache перезапущен через службу")
                     return True, "Apache restarted"
                 else:
                     error = result.stderr.strip() or result.stdout.strip()
@@ -104,7 +93,6 @@ def find_webinst(config: PublisherConfig) -> Optional[Path]:
     system = platform.system().lower()
     exe_name = "webinst.exe" if system == "windows" else "webinst"
 
-    # Если путь указан в конфиге
     if config.WEBINST_PATH:
         path = Path(config.WEBINST_PATH)
         if path.exists():
@@ -121,7 +109,6 @@ def find_webinst(config: PublisherConfig) -> Optional[Path]:
         else:
             paths = [Path(f"/opt/1cv8/x86_64/{config.ONEC_VERSION}/bin/{exe_name}")]
 
-    # Стандартные пути
     if system == "windows":
         paths.append(Path(r"C:\Program Files\1cv8\bin\webinst.exe"))
         paths.append(Path(r"C:\Program Files (x86)\1cv8\bin\webinst.exe"))
@@ -133,7 +120,6 @@ def find_webinst(config: PublisherConfig) -> Optional[Path]:
             logger.debug("webinst найден: %s", path)
             return path
 
-    # Поиск в PATH
     webinst_in_path = shutil.which(exe_name)
     if webinst_in_path:
         return Path(webinst_in_path)
@@ -142,40 +128,37 @@ def find_webinst(config: PublisherConfig) -> Optional[Path]:
     return None
 
 
-def get_apache_conf_path(config: PublisherConfig) -> Optional[Path]:
-    """Возвращает путь к конфигурационному файлу Apache."""
-    if config.apache_conf_path and Path(config.apache_conf_path).exists():
-        return Path(config.apache_conf_path)
-
-    system = platform.system().lower()
-    if system == "windows":
-        return Path(config.APACHE_INSTALL_PATH_WIN) / "conf" / "httpd.conf"
-    else:
-        return Path("/etc/apache2/apache2.conf")
-
-
-def create_temp_apache_conf(config: PublisherConfig) -> Path:
-    """Создаёт временный конфиг Apache для webinst."""
+def create_dummy_apache_conf(config: PublisherConfig) -> Path:
+    """
+    Создаёт фиктивный конфиг Apache для webinst.
+    Это нужно, чтобы webinst НЕ писал в реальный httpd.conf.
+    Все алиасы мы добавляем сами в httpd-1c.conf.
+    """
     temp_conf = (
         Path(tempfile.gettempdir())
-        / f"webinst_temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}.conf"
+        / f"webinst_dummy_{datetime.now().strftime('%Y%m%d_%H%M%S')}.conf"
     )
 
-    publish_root = str(config.PUBLISH_ROOT).replace("\\", "/")
-    apache_root = str(config.APACHE_INSTALL_PATH_WIN).replace("\\", "/")
+    # Минимальный конфиг, чтобы webinst не ругался
+    content = """# Dummy Apache config for webinst
+# Этот файл используется только для того, чтобы webinst не писал в реальный httpd.conf
+# Все алиасы 1С управляются через httpd-1c.conf
 
-    content = f"""# Temporary config for webinst
 Listen 8080
-ServerRoot "{apache_root}"
-DocumentRoot "{publish_root}"
-<Directory "{publish_root}">
+ServerRoot "C:/Apache24"
+DocumentRoot "C:/Apache24/htdocs"
+
+<Directory "C:/Apache24/htdocs">
     Options Indexes FollowSymLinks
     AllowOverride All
     Require all granted
 </Directory>
+
+# Отключаем запись алиасов в этот файл
+# Алиасы будут добавлены вручную в httpd-1c.conf
 """
     temp_conf.write_text(content, encoding="utf-8")
-    logger.debug("Создан временный конфиг: %s", temp_conf)
+    logger.debug("Создан фиктивный конфиг для webinst: %s", temp_conf)
     return temp_conf
 
 
@@ -186,11 +169,9 @@ def publish_base(
     force: bool = False,
     auto_restart: bool = True,
 ) -> tuple[bool, str]:
-    """Публикует базу с автоматической генерацией VRD."""
+    """Публикует базу без записи в httpd.conf (только в httpd-1c.conf)."""
     logger.info("Публикация: %s", base_name)
-    temp_conf = None
-    result = False
-    result_msg = ""
+    dummy_conf = None
 
     try:
         publish_dir = config.get_publish_dir(base_name)
@@ -216,13 +197,9 @@ def publish_base(
         if not webinst_exe or not webinst_exe.exists():
             return False, "webinst.exe не найден"
 
-        # Получаем путь к конфигу Apache
-        apache_conf = get_apache_conf_path(config)
-
-        # Если конфиг не найден, создаём временный
-        if not apache_conf or not apache_conf.exists():
-            temp_conf = create_temp_apache_conf(config)
-            apache_conf = temp_conf
+        # ВАЖНО: Используем фиктивный конфиг, чтобы webinst НЕ писал в httpd.conf
+        # Все алиасы мы добавляем сами через add_1c_alias_to_conf
+        dummy_conf = create_dummy_apache_conf(config)
 
         # Формируем имя wsdir
         wsdir_name = tech_name if tech_name else publish_dir.name
@@ -243,7 +220,7 @@ def publish_base(
             "-descriptor",
             str(vrd_path),
             "-confPath",
-            str(apache_conf),
+            str(dummy_conf),  # Используем фиктивный конфиг!
         ]
 
         logger.debug("Команда: %s", mask_sensitive_data(" ".join(cmd)))
@@ -265,43 +242,41 @@ def publish_base(
         error = proc.stderr.strip() if proc.stderr else ""
 
         if proc.returncode == 0:
-            logger.info("✅ База %s опубликована", base_name)
+            logger.info("✅ База %s опубликована (webinst)", base_name)
 
             # Отключаем веб-клиент в VRD
             vrd_file = publish_dir / vrd_filename
             if vrd_file.exists():
                 disable_web_client_in_vrd(vrd_file)
 
-            # Добавляем алиас в конфиг Apache
+            # Добавляем алиас в httpd-1c.conf (а не в httpd.conf!)
             alias_name = wsdir_name
             add_1c_alias_to_conf(alias_name, publish_dir, config, vrd_filename)
 
-            result = True
-            result_msg = str(publish_dir)
+            logger.info("✅ Алиас добавлен в httpd-1c.conf: /%s → %s", alias_name, publish_dir)
+
+            # Перезапускаем Apache после успешной публикации
+            if auto_restart:
+                logger.info("Перезапуск Apache...")
+                restart_ok, restart_msg = restart_apache(config)
+                if not restart_ok:
+                    logger.warning("Не удалось перезапустить Apache: %s", restart_msg)
+                    return True, f"{publish_dir} (Apache не перезапущен: {restart_msg})"
+                else:
+                    logger.info("✅ Apache перезапущен")
+                    return True, f"{publish_dir} (Apache перезапущен)"
+
+            return True, str(publish_dir)
         else:
             # Анализируем ошибку
             err_msg = error or output
             if "already exists" in err_msg.lower() or "существует" in err_msg.lower():
                 logger.warning("Публикация уже существует: %s", base_name)
-                result = True
-                result_msg = "already exists"
+                return True, "already exists"
             elif "access denied" in err_msg.lower() or "отказано в доступе" in err_msg.lower():
-                result_msg = "Нет прав доступа. Запустите скрипт от имени администратора"
+                return False, "Нет прав доступа. Запустите скрипт от имени администратора"
             else:
-                result_msg = f"webinst error: {mask_sensitive_data(err_msg[:500])}"
-
-        # Перезапускаем Apache после успешной публикации
-        if result and auto_restart:
-            logger.info("Перезапуск Apache...")
-            restart_ok, restart_msg = restart_apache(config)
-            if not restart_ok:
-                logger.warning("Не удалось перезапустить Apache: %s", restart_msg)
-                result_msg += f" (Apache не перезапущен: {restart_msg})"
-            else:
-                logger.info("✅ Apache перезапущен")
-                result_msg += " (Apache перезапущен)"
-
-        return result, result_msg
+                return False, f"webinst error: {mask_sensitive_data(err_msg[:500])}"
 
     except subprocess.TimeoutExpired:
         return False, "Таймаут 120 секунд"
@@ -309,10 +284,11 @@ def publish_base(
         logger.error(f"Ошибка публикации {base_name}: {e}", exc_info=True)
         return False, str(e)
     finally:
-        # Удаляем временный конфиг
-        if temp_conf and temp_conf.exists():
+        # Удаляем фиктивный конфиг
+        if dummy_conf and dummy_conf.exists():
             try:
-                temp_conf.unlink()
+                dummy_conf.unlink()
+                logger.debug("Удалён фиктивный конфиг: %s", dummy_conf)
             except:
                 pass
 
@@ -320,20 +296,16 @@ def publish_base(
 def delete_publish(
     base_name: str, config: PublisherConfig, delete_files: bool = True, auto_restart: bool = True
 ) -> tuple[bool, str]:
-    """Полностью удаляет публикацию базы."""
+    """Удаляет публикацию базы."""
     logger.info("Удаление публикации: %s", base_name)
-    temp_conf = None
-    result = False
-    result_msg = ""
+    dummy_conf = None
 
     try:
         publish_root = Path(config.PUBLISH_ROOT)
 
-        # Нормализуем пути для Windows
         if platform.system().lower() == "windows":
             publish_root = Path(str(publish_root).replace("/", "\\"))
 
-        # Пути для prod и tech
         prod_dir = publish_root / "prod" / base_name
         tech_name = f"{base_name}{config.TECH_SUFFIX}"
         tech_dir = publish_root / "tech" / tech_name
@@ -341,19 +313,14 @@ def delete_publish(
         deleted_dirs = []
         webinst_exe = find_webinst(config)
 
-        # Функция для удаления через webinst
         def unpublish_with_webinst(wsdir: str, dir_path: Path) -> bool:
             if not webinst_exe or not webinst_exe.exists():
                 return False
 
-            # Получаем конфиг Apache
-            apache_conf = get_apache_conf_path(config)
-
-            if not apache_conf or not apache_conf.exists():
-                temp_conf_local = create_temp_apache_conf(config)
-                apache_conf = temp_conf_local
-                nonlocal temp_conf
-                temp_conf = temp_conf_local
+            # Используем фиктивный конфиг для удаления
+            nonlocal dummy_conf
+            if not dummy_conf:
+                dummy_conf = create_dummy_apache_conf(config)
 
             cmd = [
                 str(webinst_exe),
@@ -362,7 +329,7 @@ def delete_publish(
                 "-wsdir",
                 wsdir,
                 "-confPath",
-                str(apache_conf),
+                str(dummy_conf),
             ]
 
             try:
@@ -409,24 +376,23 @@ def delete_publish(
 
         if not deleted_dirs:
             logger.info("Публикация %s не найдена", base_name)
-            result = True
-            result_msg = "not found"
-        else:
-            result = True
-            result_msg = f"Deleted: {', '.join(deleted_dirs)}"
+            return True, "not found"
 
         # Перезапускаем Apache после успешного удаления
-        if result and auto_restart and deleted_dirs:
+        if auto_restart:
             logger.info("Перезапуск Apache...")
             restart_ok, restart_msg = restart_apache(config)
             if not restart_ok:
                 logger.warning("Не удалось перезапустить Apache: %s", restart_msg)
-                result_msg += f" (Apache не перезапущен: {restart_msg})"
+                return (
+                    True,
+                    f"Deleted: {', '.join(deleted_dirs)} (Apache не перезапущен: {restart_msg})",
+                )
             else:
                 logger.info("✅ Apache перезапущен")
-                result_msg += " (Apache перезапущен)"
+                return True, f"Deleted: {', '.join(deleted_dirs)} (Apache перезапущен)"
 
-        return result, result_msg
+        return True, f"Deleted: {', '.join(deleted_dirs)}"
 
     except PermissionError as e:
         logger.error("Ошибка прав доступа при удалении: %s", e)
@@ -435,9 +401,10 @@ def delete_publish(
         logger.error("Ошибка при удалении: %s", e)
         return False, f"Ошибка при удалении: {e}"
     finally:
-        if temp_conf and temp_conf.exists():
+        if dummy_conf and dummy_conf.exists():
             try:
-                temp_conf.unlink()
+                dummy_conf.unlink()
+                logger.debug("Удалён фиктивный конфиг: %s", dummy_conf)
             except:
                 pass
 
@@ -450,7 +417,6 @@ def publish_multiple_bases(
 ) -> dict[str, tuple[bool, str]]:
     """Публикует список баз."""
     results = {}
-    need_restart = False
 
     for base in bases:
         if not config.should_publish_base(base):
@@ -462,30 +428,10 @@ def publish_multiple_bases(
             results[base] = (True, "exists")
             continue
 
-        # Публикуем без автоматического перезапуска каждой базы
-        result, msg = publish_base(base, config, auto_restart=False)
+        # Публикуем, перезагрузка Apache будет после каждой базы или в конце?
+        # Для простоты перезагружаем после каждой (параметр auto_restart)
+        result, msg = publish_base(base, config, auto_restart=auto_restart)
         results[base] = (result, msg)
-        if result:
-            need_restart = True
-
-    # Один раз перезапускаем Apache после публикации всех баз
-    if need_restart and auto_restart:
-        logger.info("Перезапуск Apache после публикации всех баз...")
-        restart_ok, restart_msg = restart_apache(config)
-        if not restart_ok:
-            logger.warning("Не удалось перезапустить Apache: %s", restart_msg)
-            # Добавляем предупреждение к результатам
-            for base in results:
-                if results[base][0]:
-                    results[base] = (
-                        results[base][0],
-                        f"{results[base][1]} (Apache NOT restarted: {restart_msg})",
-                    )
-        else:
-            logger.info("✅ Apache успешно перезапущен")
-            for base in results:
-                if results[base][0]:
-                    results[base] = (results[base][0], f"{results[base][1]} (Apache restarted)")
 
     return results
 
@@ -500,7 +446,6 @@ def delete_multiple_bases(
     logger.info("Массовое удаление %d баз", len(bases))
 
     results = {}
-    need_restart = False
 
     for base in bases:
         if not config.should_publish_base(base):
@@ -508,30 +453,11 @@ def delete_multiple_bases(
             results[base] = (True, "skipped by filter")
             continue
 
-        # Удаляем без автоматического перезапуска каждой базы
-        success, msg = delete_publish(base, config, delete_files=delete_files, auto_restart=False)
+        success, msg = delete_publish(
+            base, config, delete_files=delete_files, auto_restart=auto_restart
+        )
         results[base] = (success, msg)
-        if success and "not found" not in msg:
-            need_restart = True
         logger.info("  %s: %s", base, "OK" if success else "ERR")
-
-    # Один раз перезапускаем Apache после удаления всех баз
-    if need_restart and auto_restart:
-        logger.info("Перезапуск Apache после удаления всех баз...")
-        restart_ok, restart_msg = restart_apache(config)
-        if not restart_ok:
-            logger.warning("Не удалось перезапустить Apache: %s", restart_msg)
-            for base in results:
-                if results[base][0] and "not found" not in results[base][1]:
-                    results[base] = (
-                        results[base][0],
-                        f"{results[base][1]} (Apache NOT restarted: {restart_msg})",
-                    )
-        else:
-            logger.info("✅ Apache успешно перезапущен")
-            for base in results:
-                if results[base][0] and "not found" not in results[base][1]:
-                    results[base] = (results[base][0], f"{results[base][1]} (Apache restarted)")
 
     success_count = sum(1 for v in results.values() if v[0])
     logger.info("Массовое удаление завершено. Успешно: %d/%d", success_count, len(bases))
